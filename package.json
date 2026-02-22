@@ -1,7 +1,7 @@
 {
   "name": "hardlauncher",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Minecraft Launcher for Hard Monitoring",
   "type": "module",
   "scripts": {
@@ -44,6 +44,7 @@
     "decompress": "^4.2.1",
     "electron-dl": "^4.0.0",
     "electron-updater": "^6.8.3",
+    "graceful-fs": "^4.2.11",
     "jdk-utils": "^0.6.0",
     "minecraft-launcher-core": "^3.18.2",
     "react": "^18.2.0",
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@types/decompress": "^4.2.7",
+    "@types/graceful-fs": "^4.1.9",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
     "@typescript-eslint/eslint-plugin": "^7.1.1",

@@ -10,6 +10,8 @@ import { promisify } from 'node:util';
 import { FabricService } from './modules/fabric.sevices';
 import { autoUpdater } from 'electron-updater';
 import versionsData from '../public/versions-manifest.json';
+import gracefulFs from 'graceful-fs';
+gracefulFs.gracefulify(fs); // Заменяем стандартный fs на более устойчивый
 
 const execAsync = promisify(exec); // Теперь это сработает
 const require = createRequire(import.meta.url)
