@@ -2,10 +2,8 @@
   "versions": [
     { "id": "1.21.11", "type": "release" },
     { "id": "Fabric 1.21.11", "type": "modified" },
-    { "id": "Forge 1.21.11", "type": "modified" },
     { "id": "1.21.10", "type": "release" },
     { "id": "Fabric 1.21.10", "type": "modified" },
-    { "id": "Forge 1.21.10", "type": "modified" },
     { "id": "1.21.9", "type": "release" },
     { "id": "Forge 1.21.9", "type": "modified" },
     { "id": "Fabric 1.21.9", "type": "modified" },

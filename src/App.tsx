@@ -5,7 +5,6 @@ import TitleBar from './components/TitleBar';
 import LaunchButton from './components/LaunchButton';
 import ServerList from './components/ServerList';
 import BackgroundCarousel from './components/BackgroundCarousel';
-import electron from 'electron';
 
 interface GameVersion {
   id: string;
@@ -22,7 +21,6 @@ interface ProgressData {
 
 
 function App() {
-  const [selectedServer, setSelectedServer] = useState('survival')
   const [nickname, setNickname] = useState('HardPlayer_01')
  const [progress, setProgress] = useState<ProgressData | null>(null);
   const [statusText, setStatusText] = useState('Загрузка файлов...');
@@ -136,7 +134,7 @@ const handleProgress = (_event: any, value: any) => {
 const handleLaunch = () => {
     setIsLaunching(true);
     setStatusText(isDownloaded ? 'Starting game...' : 'Downloading files...');
-    window.ipcRenderer.send('launch-game', { selectedServer, nickname, version: selectedVersion });
+    window.ipcRenderer.send('launch-game', { nickname, version: selectedVersion });
 };
 
 const handleResetVersion = async () => {

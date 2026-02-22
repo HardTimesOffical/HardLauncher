@@ -26,10 +26,12 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({ progress, isDownloaded, isL
 
   const state = getButtonState();
   const isDisabled = state === 'downloading' || state === 'launching';
+  
+  // Улучшенная логика subText
   const subText = progress !== null 
-  ? (progress.current === "0.0" ? "Initializing Fabric..." : `${progress.current} MB / ${progress.total} MB`)
-  : isLaunching ? "Starting engine..." : isDownloaded ? "Ready to play" : "Download required";
-
+    ? (progress.isChecking || progress.total === "0.0" ? "Проверка..." : `${progress.current} MB / ${progress.total} MB`)
+    : isLaunching ? "Подготовка..." : isDownloaded ? "Готов к игре" : "Требуется установка";
+    
   return (
     <button
   disabled={isDisabled}
@@ -60,21 +62,17 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({ progress, isDownloaded, isL
   )}
 
   <div className="relative h-14 px-8 flex items-center gap-4 min-w-[280px] justify-between">
-    <div className="flex flex-col items-start">
-      <span className="text-[15px] font-bold uppercase tracking-tight leading-none text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">
-        {state === 'downloading' ? 'Установка' : 
-         state === 'launching' ? 'Запуск...' : 
-         state === 'play' ? 'Играть' : 'Установить'}
-      </span>
-      
-      <span className="text-[10px] font-bold mt-1 text-white/70 uppercase tracking-tighter">
-        {state === 'downloading' 
-          ? (progress?.isChecking || progress?.total === "0.0" 
-              ? 'Проверка...' 
-              : `${progress?.current}MB / ${progress?.total}MB`) :
-         state === 'launching' ? 'Подготовка...' :
-         state === 'play' ? 'Версия Forge 1.21.1' : 'Версия не найдена'}
-      </span>
+        <div className="flex flex-col items-start">
+          <span className="text-[15px] font-bold uppercase tracking-tight leading-none text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">
+            {state === 'downloading' ? 'Установка' : 
+             state === 'launching' ? 'Запуск...' : 
+             state === 'play' ? 'Играть' : 'Установить'}
+          </span>
+          
+          {/* ИСПОЛЬЗУЕМ ПЕРЕМЕННУЮ ТУТ */}
+          <span className="text-[10px] font-bold mt-1 text-white/70 uppercase tracking-tighter">
+            {subText}
+          </span>
     </div>
     
     {/* Иконка "Стрелочка" как на скрине */}

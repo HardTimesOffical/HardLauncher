@@ -9,6 +9,7 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { FabricService } from './modules/fabric.sevices';
 import { autoUpdater } from 'electron-updater';
+import versionsData from '../public/versions-manifest.json';
 
 const execAsync = promisify(exec); // Теперь это сработает
 const require = createRequire(import.meta.url)
@@ -358,17 +359,20 @@ ipcMain.on('launch-game', async (event, { version, nickname }) => {
       root: ROOT_DIR,
       javaPath,
       version: {
-        number: (isFabric || isForge) ? (version.match(/(\d+\.\d+\.?\d*)/)?.[0] || "1.21.1") : version,
-        custom: (isFabric || isForge) ? version : undefined,
+        // Здесь мы используем launchVersion вместо исходного version
+        number: (isFabric || isForge) ? (launchVersion.match(/(\d+\.\d+\.?\d*)/)?.[0] || "1.21.1") : launchVersion,
+        custom: (isFabric || isForge) ? launchVersion : undefined,
         type: "release"
       },
       customArgs: ["-Dforge.earlydisplay=false"],
       overrides: {
         versionType: "release",
-        gameDirectory: path.join(ROOT_DIR, 'instances', version)
+        gameDirectory: path.join(ROOT_DIR, 'instances', launchVersion) // И здесь тоже
       },
       memory: { max: "4G", min: "1G" }
     };
+
+    launcher.launch(opts);
 
     launcher.launch(opts);
 
@@ -387,18 +391,29 @@ ipcMain.on('open-game-folder', () => {
 
 ipcMain.handle('get-versions', async () => {
   try {
-    const jsonPath = path.join(app.getAppPath(), 'public/versions-manifest.json');
-    const rawData = fs.readFileSync(jsonPath, 'utf-8');
-    const { versions } = JSON.parse(rawData);
+    // Данные уже загружены в переменную versionsData при запуске приложения
+    const { versions } = versionsData;
     const versionsPath = path.join(ROOT_DIR, 'versions');
 
     return versions.map((v: any) => {
       const versionDir = path.join(versionsPath, v.id);
-      // Проверка: скачана ли версия (наличие папки и JSON/JAR файла)
-      const isDownloaded = fs.existsSync(versionDir) && fs.readdirSync(versionDir).length > 0;
-      return { ...v, isDownloaded };
+      
+      // Проверяем, скачана ли папка с этой версией
+      let isDownloaded = false;
+      if (fs.existsSync(versionDir)) {
+        const files = fs.readdirSync(versionDir);
+        isDownloaded = files.length > 0;
+      }
+
+      return { 
+        ...v, 
+        isDownloaded 
+      };
     });
-  } catch (e) { return []; }
+  } catch (e) { 
+    console.error("Error processing versions data:", e);
+    return []; 
+  }
 });
 
 ipcMain.handle('reset-version', async (_, versionId) => {
