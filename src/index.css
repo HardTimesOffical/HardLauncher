@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+@font-face {
+  font-family: 'MinecraftTen';
+  src: url('./assets/fonts/MinecraftTen.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'MinecraftSeven';
+  src: url('./assets/fonts/MinecraftSeven.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* Если хочешь использовать его как основной шрифт для всего приложения */
+:root {
+  font-family: 'MinecraftTen', sans-serif;
+}
+
+/* Элементы внутри, на которые МОЖНО нажимать (кнопки, ссылки), 
+   должны иметь это свойство, иначе клики по ним не пройдут */
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+@keyframes progress-glow {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+.animate-pulse-fast {
+  animation: progress-glow 1.5s infinite ease-in-out;
+}
