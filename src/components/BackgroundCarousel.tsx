@@ -12,40 +12,41 @@ const BackgroundCarousel: React.FC<BackgroundCarouselProps> = ({
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
-    if (images.length <= 1) return;
+    if (!images || images.length <= 1) return;
 
     const timer = setInterval(() => {
       setIndex((prev) => (prev + 1) % images.length);
     }, interval);
 
     return () => clearInterval(timer);
-  }, [images, interval]);
+  }, [images.length, interval]); // Следим за длиной массива
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
-      {/* Затемняющий градиент для читаемости интерфейса */}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0a]/40 to-[#0a0a0a] z-10" />
+    <div className="absolute inset-0 overflow-hidden bg-black">
+      {/* Градиент должен быть выше картинок, но ниже контента */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/60 via-transparent to-[#0a0a0a] z-10 pointer-events-none" />
 
       {images.map((img, i) => (
         <div
-          key={i}
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-[2500ms] ease-in-out scale-110
-            ${index === i ? 'opacity-100' : 'opacity-0'}`}
+          key={img} // Используем URL как ключ для лучшей работы React
+          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-[3000ms] ease-in-out
+            ${index === i ? 'opacity-100 z-0' : 'opacity-0 -z-10'}`}
           style={{ 
             backgroundImage: `url('${img}')`,
-            // Добавляем небольшое смещение для эффекта "живого" фона
-            transform: index === i ? 'scale(1.05)' : 'scale(1.1)' 
+            // Масштаб меняется вместе с прозрачностью
+            transform: index === i ? 'scale(1)' : 'scale(1.1)',
+            transitionProperty: 'opacity, transform'
           }}
         />
       ))}
 
-      {/* Индикаторы (точки) */}
-      <div className="absolute bottom-32 left-1/2 -translate-x-1/2 flex gap-2 z-20 opacity-30 hover:opacity-100 transition-opacity">
+      {/* Индикаторы */}
+      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 flex gap-3 z-20">
         {images.map((_, i) => (
           <div
             key={i}
-            className={`h-1 transition-all duration-500 rounded-full ${
-              index === i ? 'w-4 bg-[#00ff95]' : 'w-1 bg-white'
+            className={`h-0.5 transition-all duration-700 ${
+              index === i ? 'w-8 bg-[#00ff95]' : 'w-2 bg-white/20'
             }`}
           />
         ))}

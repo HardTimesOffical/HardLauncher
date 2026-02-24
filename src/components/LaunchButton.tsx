@@ -2,9 +2,10 @@ import React from 'react';
 
 interface ProgressData {
   percent: number;
-  current: string;
-  total: string;
+  current: string | number;
+  total: string | number;
   isChecking?: boolean;
+  unit?: string; // "MB" или "шт."
 }
 
 interface LaunchButtonProps {
@@ -28,9 +29,22 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({ progress, isDownloaded, isL
   const isDisabled = state === 'downloading' || state === 'launching';
   
   // Улучшенная логика subText
-  const subText = progress !== null 
-    ? (progress.isChecking || progress.total === "0.0" ? "Проверка..." : `${progress.current} MB / ${progress.total} MB`)
-    : isLaunching ? "Подготовка..." : isDownloaded ? "Готов к игре" : "Требуется установка";
+ const subText = React.useMemo(() => {
+  if (progress !== null) {
+    if (progress.isChecking || !progress.total || progress.total === "0.0") {
+      return "Анализ файлов...";
+    }
+    
+    // Если это загрузка ассетов (их много), пишем "файлов"
+    const unit = progress.unit || (parseInt(progress.total.toString()) > 1000 ? "файлов" : "MB");
+    return `${progress.current} / ${progress.total} ${unit}`;
+  }
+  
+  if (isLaunching) return "Запуск процесса...";
+  if (isDownloaded) return "Версия готова";
+  return "Требуется загрузка";
+}, [progress, isLaunching, isDownloaded]);
+
     
   return (
     <button

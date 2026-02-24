@@ -1,465 +1,353 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
-import https from 'node:https' // Используем встроенный модуль для скачивания
-import decompress from 'decompress'
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
-import { FabricService } from './modules/fabric.sevices';
-import { autoUpdater } from 'electron-updater';
-import versionsData from '../public/versions-manifest.json';
-import gracefulFs from 'graceful-fs';
-gracefulFs.gracefulify(fs); // Заменяем стандартный fs на более устойчивый
+import { autoUpdater } from 'electron-updater'
+import gracefulFs from 'graceful-fs'
+import { IUser } from 'minecraft-launcher-core'
 
-const execAsync = promisify(exec); // Теперь это сработает
+// --- НАШИ МОДУЛИ ---
+import { isVersionDownloaded, ensureRootDir } from './modules/path.manager'
+import { getJavaVersionNeeded, ensureJava } from './modules/java.service'
+import { createGameLauncher } from './modules/game.launcher'
+import versionsData from '../public/versions-manifest.json'
+import { ConfigManager } from './modules/config.manager'
+
+gracefulFs.gracefulify(fs)
+
+
+
+// --- ИНТЕРФЕЙСЫ ---
+interface GameVersion {
+  id: string
+  name?: string
+  type: 'release' | 'snapshot' | 'custom'
+  url?: string
+}
+
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// 1. Инициализация MCLC
-const MCLC = require('minecraft-launcher-core');
-const LauncherClient = MCLC.Client; 
-const ROOT_DIR = path.join(app.getPath('appData'), '.hard-monitoring');
+process.env.APP_ROOT = path.join(__dirname, '..')
+export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
+export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
+let win: BrowserWindow | null = null
 
-const FORGE_MAP: Record<string, string> = {
-  // --- СОВРЕМЕННЫЕ ВЕРСИИ (Java 17/21) ---
-  "1.21.4": "54.0.1",
-  "1.21.3": "53.0.1",
-  "1.21.1": "52.0.0",
-  "1.21":   "51.0.8",
-  "1.20.6": "50.1.0",
-  "1.20.4": "49.0.31",
-  "1.20.2": "48.1.0",
-  "1.20.1": "47.3.0",
-  "1.19.4": "45.3.0",
-  "1.19.3": "44.1.0",
-  "1.19.2": "43.4.0",
-  "1.19.1": "42.0.1",
-  "1.19":   "41.1.0",
-  "1.18.2": "40.2.21",
-  "1.18.1": "39.1.2",
-  "1.17.1": "37.1.1",
-
-  // --- КЛАССИЧЕСКИЕ ВЕРСИИ (Java 8/16) ---
-  "1.16.5": "36.2.39",
-  "1.16.4": "35.1.37",
-  "1.16.3": "34.1.42",
-  "1.16.1": "32.0.108",
-  "1.15.2": "31.2.57",
-  "1.14.4": "28.2.26",
-  "1.13.2": "25.0.223",
-
-  // --- СТАРЫЕ ВЕРСИИ (Другой формат ссылок) ---
-  "1.12.2": "14.23.5.2860",
-  "1.12.1": "14.22.1.2478",
-  "1.12":   "14.21.1.2387",
-  "1.11.2": "13.20.1.2386",
-  "1.10.2": "12.18.3.2511",
-  "1.9.4":  "12.17.0.1976",
-  "1.8.9":  "11.15.1.2318",
-  "1.7.10": "10.13.4.1614"
-};
-
-// 2. Метод авторизации
-function authMethod(nickname: string) {
-  // Генерируем стабильный UUID на основе ника, чтобы сохранялся инвентарь в синглплеере
-  const crypto = require('crypto');
-  
-  // Создаем хэш ника и формируем из него подобие UUID (формат 8-4-4-4-12)
-  const hash = crypto.createHash('md5').update(nickname).digest("hex");
+// ======================================================
+// 1. АВТОРИЗАЦИЯ (Offline) - РЕШЕНИЕ ПРОБЛЕМ ТИПОВ
+// ======================================================
+function authMethod(nickname: string): IUser {
+  const crypto = require('crypto')
+  const hash = crypto.createHash('md5').update(nickname).digest("hex")
   const uuid = [
     hash.substring(0, 8),
     hash.substring(8, 12),
     hash.substring(12, 16),
     hash.substring(16, 20),
     hash.substring(20, 32)
-  ].join('-');
+  ].join('-')
 
+  // Возвращаем объект, который ТОЧНО соответствует интерфейсу IUser из MCLC
   return {
-    access_token: "null", // Для оффлайн режима можно любое значение
+    access_token: "0",
     client_token: uuid,
     uuid: uuid,
     name: nickname,
-    user_properties: "{}"
-  };
+    user_properties: {}, // Пустой Partial<any> объект вместо строки
+    meta: {
+      type: "mojang", // Обязательное литеральное поле
+      demo: false
+    }
+  }
 }
 
-// --- Вспомогательная функция скачивания Java ---
-function downloadFile(url: string, dest: string, webContents: Electron.WebContents): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
+// ======================================================
+// 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ======================================================
+function extractMinecraftVersion(versionId: string): string {
+  const match = versionId.match(/(\d+\.\d+\.?\d*)$/)
+  return match ? match[0] : versionId
+}
+
+
+async function getFabricProfile(minecraftVersion: string, loaderVersion: string) {
+    const url = `https://meta.fabricmc.net/v2/versions/loader/${minecraftVersion}/${loaderVersion}/profile/json`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Не удалось получить профиль Fabric для ${minecraftVersion}`);
+    return await response.json();
+}
+
+// ======================================================
+// 2. ФУНКЦИЯ А: ЗАПУСК ВАНИЛЛЫ (Через API Mojang)
+// ======================================================
+
+async function launchVanilla(
+  versionId: string, 
+  nickname: string, 
+  webContents: Electron.WebContents, 
+  serverIp?: string
+) {
+  // 1. Сначала загружаем конфиг, чтобы знать актуальные пути и RAM
+  const config = ConfigManager.load();
+  const mcVersion = extractMinecraftVersion(versionId);
+
+  // 2. Передаем config.gamePath третьим аргументом (исправляет ошибку TS)
+  const javaPath = await ensureJava(
+    getJavaVersionNeeded(mcVersion).toString(), 
+    webContents, 
+    config.gamePath
+  );
+
+  // Чистим IP (на случай если прилетел JSON)
+  let cleanIp = serverIp;
+  if (cleanIp?.startsWith('{')) {
+      try { cleanIp = JSON.parse(cleanIp).java; } catch { }
+  }
+
+  const host = cleanIp ? cleanIp.split(':')[0] : '';
+  const port = cleanIp && cleanIp.includes(':') ? cleanIp.split(':')[1] : '25565';
+
+  const opts: any = {
+    authorization: authMethod(nickname),
+    root: config.gamePath, // Используем динамический путь
+    javaPath,
+    version: { number: mcVersion, type: 'release' },
+    memory: { min: "1G", max: `${config.ram}G` },
     
-    const request = https.get(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    }, (response) => {
-      // Обработка редиректов (важно для Forge Maven)
-      if ([301, 302, 307, 308].includes(response.statusCode || 0)) {
-        file.close();
-        return downloadFile(response.headers.location!, dest, webContents).then(resolve).catch(reject);
-      }
+    // МЕТОД 1: Стандартный
+    quickPlay: cleanIp ? {
+      type: "multiplayer",
+      identifier: cleanIp.includes(':') ? cleanIp : `${cleanIp}:25565`
+    } : undefined,
 
-      if (response.statusCode !== 200) {
-        file.close();
-        return reject(new Error(`Server responded with ${response.statusCode}`));
-      }
-
-      const total = parseInt(response.headers['content-length'] || '0', 10);
-      let downloaded = 0;
-
-      response.on('data', (chunk) => {
-        downloaded += chunk.length;
-        if (total > 0) {
-          const percent = Math.round((downloaded / total) * 100);
-          webContents.send('download-progress', {
-            percent,
-            current: (downloaded / (1024 * 1024)).toFixed(1),
-            total: (total / (1024 * 1024)).toFixed(1)
-          });
-        }
-      });
-
-      response.pipe(file);
-
-      file.on('finish', () => {
-        file.close(() => {
-          // Проверка: не пустой ли файл мы скачали?
-          const stats = fs.statSync(dest);
-          if (stats.size === 0) {
-            reject(new Error("Downloaded file is empty"));
-          } else {
-            resolve();
-          }
-        });
-      });
-    });
-
-    request.on('error', (err) => {
-      file.close();
-      if (fs.existsSync(dest)) fs.unlinkSync(dest);
-      reject(err);
-    });
-  });
-}
-
-async function ensureJava(version: string, webContents: Electron.WebContents) {
-  const javaFolder = path.join(ROOT_DIR, 'runtime', `java-${version}`);
-  const javaExeName = process.platform === 'win32' ? 'java.exe' : 'java';
-
-  // 1. Поиск существующей Java
-  const findJavaDeep = (dir: string): string | null => {
-    if (!fs.existsSync(dir)) return null;
-    const getAllFiles = (currentPath: string, fileList: string[] = []): string[] => {
-      const files = fs.readdirSync(currentPath);
-      files.forEach(file => {
-        const name = path.join(currentPath, file);
-        if (fs.statSync(name).isDirectory()) {
-          getAllFiles(name, fileList);
-        } else {
-          fileList.push(name);
-        }
-      });
-      return fileList;
-    };
-    const allFiles = getAllFiles(dir);
-    return allFiles.find(f => f.toLowerCase().endsWith(path.join('bin', javaExeName).toLowerCase())) || null;
+    // МЕТОД 2: Прямая вставка в аргументы
+    args: cleanIp ? [
+      '--server', host,
+      '--port', port
+    ] : []
   };
 
-  let existingPath = findJavaDeep(javaFolder);
-  if (existingPath) return existingPath;
+  // На всякий случай дублируем в overrides
+  opts.overrides = {
+      assetIndex: mcVersion,
+      customArgs: opts.args 
+  };
 
-  // 2. Ссылки на скачивание (Добавлена Java 8)
-  let downloadUrl = "";
-  if (version === '21') {
-    downloadUrl = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.2%2B13/OpenJDK21U-jdk_x64_windows_hotspot_21.0.2_13.zip";
-  } else if (version === '17') {
-    downloadUrl = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.10%2B7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.10_7.zip";
-  } else {
-    // Для 1.12.2 и ниже
-    downloadUrl = "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u402-b06/OpenJDK8U-jdk_x64_windows_hotspot_8u402b06.zip";
-  }
+  // Проверяем наличие JAR в правильной папке
+  const versionDir = path.join(config.gamePath, 'versions', mcVersion);
+  const jarPath = path.join(versionDir, `${mcVersion}.jar`);
+  const isReady = fs.existsSync(jarPath);
 
-  const zipPath = path.join(ROOT_DIR, `temp_java_${version}.zip`);
-  if (!fs.existsSync(ROOT_DIR)) fs.mkdirSync(ROOT_DIR, { recursive: true });
-
-  webContents.send('launch-status', `Downloading Java ${version}...`);
-  await downloadFile(downloadUrl, zipPath, webContents);
+  const launcher = createGameLauncher(webContents, !isReady);
+  await launcher.launch(opts);
+}
+// ======================================================
+// 3. ФУНКЦИЯ Б: ЗАПУСК КАСТОМА (Только локально)
+// ======================================================
+async function launchCustom(versionObj: any, nickname: string, webContents: Electron.WebContents) {
+  const { id, gameVersion, loaderVersion } = versionObj;
   
-  webContents.send('launch-status', `Extracting Java...`);
-  if (fs.existsSync(javaFolder)) fs.rmSync(javaFolder, { recursive: true, force: true });
-  fs.mkdirSync(javaFolder, { recursive: true });
+  // 1. Сначала загружаем конфиг, чтобы знать актуальный путь
+  const config = ConfigManager.load();
+  
+  // 2. Используем config.gamePath вместо ROOT_DIR
+  const versionDir = path.join(config.gamePath, 'versions', id);
+  const jsonPath = path.join(versionDir, `${id}.json`);
 
-  try {
-    await execAsync(`tar -xf "${zipPath}" -C "${javaFolder}"`);
-  } catch (err) {
-    await decompress(zipPath, javaFolder);
+  // Проверяем/скачиваем профиль Fabric
+  if (!fs.existsSync(jsonPath)) {
+    console.log(`[Launcher] Профиль не найден, скачиваем...`);
+    const fabricJson = await getFabricProfile(gameVersion, loaderVersion);
+    fabricJson.id = id;
+    
+    if (!fs.existsSync(versionDir)) fs.mkdirSync(versionDir, { recursive: true });
+    fs.writeFileSync(jsonPath, JSON.stringify(fabricJson, null, 2));
   }
 
-  if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-  return findJavaDeep(javaFolder) || "";
-}
-// 3. Настройки Vite
-process.env.APP_ROOT = path.join(__dirname, '..')
-export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
+  // 3. Передаем config.gamePath третьим аргументом в ensureJava
+  const javaPath = await ensureJava(
+    getJavaVersionNeeded(gameVersion).toString(), 
+    webContents, 
+    config.gamePath
+  );
 
-let win: BrowserWindow | null
-
-function createWindow() {
-  win = new BrowserWindow({
-    width: 1000, height: 650, frame: false, transparent: true,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
-      contextIsolation: true, nodeIntegration: false,
+  // 4. Формируем опции запуска
+  const opts: any = {
+    authorization: authMethod(nickname),
+    root: config.gamePath, // Путь установки игры
+    javaPath,
+    version: {
+      number: gameVersion,
+      custom: id,
+      type: 'release' 
     },
-  })
-  VITE_DEV_SERVER_URL ? win.loadURL(VITE_DEV_SERVER_URL) : win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    overrides: {
+      detached: true,
+      extraArgs: ['--versionType', 'release']
+    },
+    skipAsync: true,
+    memory: { 
+      min: "1G", 
+      max: `${config.ram}G` 
+    }
+  };
+
+  // Проверка JAR и запуск
+  const jarPath = path.join(versionDir, `${id}.jar`);
+  const isReady = fs.existsSync(jarPath);
+  
+  console.log(`[Launcher] ${isReady ? 'Быстрый запуск' : 'Первый запуск с проверкой'}`);
+  
+  const launcher = createGameLauncher(webContents, !isReady);
+  await launcher.launch(opts);
 }
 
-ipcMain.on('window-control', (_, action) => {
-  const focusedWin = BrowserWindow.getFocusedWindow()
-  if (action === 'minimize') focusedWin?.minimize()
-  if (action === 'close') app.quit()
-})
+// ======================================================
+// 4. ГЛАВНЫЙ IPC ВХОД
+// ======================================================
 
 ipcMain.on('launch-game', async (event, { version, nickname }) => {
   const webContents = event.sender;
-  const launcher = new LauncherClient();
+
+  // 1. Сначала загружаем актуальный конфиг
+  const config = ConfigManager.load();
   
-  webContents.send('download-progress', { percent: 0, current: "0", total: "0", isChecking: true });
-  webContents.send('launch-status', 'Preparing launch...');
+  // 2. Передаем путь к игре в ensureRootDir (исправляет ошибку TS)
+  ensureRootDir(config.gamePath);
 
   try {
-    if (!fs.existsSync(ROOT_DIR)) fs.mkdirSync(ROOT_DIR, { recursive: true });
+    // Ищем объект версии
+    const versionObj = (versionsData.versions as any[]).find(v => v.id === version);
 
-    // --- 1. ОПРЕДЕЛЕНИЕ ВЕРСИИ И ВЫБОР JAVA ---
-    // Это должно быть ПЕРВЫМ, чтобы javaPath была доступна везде
-    const gameVersionMatch = version.match(/(\d+\.\d+)/);
-    const baseGameVersion = gameVersionMatch ? gameVersionMatch[0] : "1.21";
-    
-    let neededJava = '8';
-    const vNum = parseFloat(baseGameVersion);
-    
-    if (vNum >= 1.21) {
-      neededJava = '21';
-    } else if (vNum >= 1.17) {
-      neededJava = '17';
-    } else {
-      neededJava = '8';
-    }
-    
-    console.log(`[DEBUG] Game: ${baseGameVersion}, Java: ${neededJava}`);
-    const javaPath = await ensureJava(neededJava, webContents);
-
-    // --- 2. ПОДГОТОВКА МОДИФИЦИРОВАННЫХ ВЕРСИЙ ---
-    let launchVersion = version;
-    const isFabric = version.toLowerCase().includes('fabric');
-    const isForge = version.toLowerCase().includes('forge');
-
-    // Настройка Fabric
-    if (isFabric) {
-      const fullGameVersion = version.match(/(\d+\.\d+\.?\d*)/)?.[0] || "1.21.1";
-      webContents.send('launch-status', `Setting up Fabric for ${fullGameVersion}...`);
-      launchVersion = await FabricService.setup(fullGameVersion, "0.16.10", ROOT_DIR, webContents);
+    if (!versionObj) {
+      throw new Error(`Версия ${version} не найдена в манифесте!`);
     }
 
-    // Настройка Forge
-    // Настройка Forge
-    if (isForge) {
-      // 1. Извлекаем полную версию (например, "1.21.4")
-      const fullGameVersion = version.match(/(\d+\.\d+\.?\d*)/)?.[0] || "1.21.1";
-      
-      // 2. Ищем версию в маппинге
-      let forgeVersion = FORGE_MAP[fullGameVersion];
-
-      // 3. Если точного совпадения нет (например, зашли на 1.21.2), 
-      // пробуем найти хотя бы для мажорной ветки (1.21)
-      if (!forgeVersion) {
-        const majorVersion = fullGameVersion.split('.').slice(0, 2).join('.');
-        forgeVersion = FORGE_MAP[majorVersion] || "52.0.0";
-      }
-
-      const forgeId = `${fullGameVersion}-forge-${forgeVersion}`;
-      const forgePath = path.join(ROOT_DIR, 'versions', version);
-
-      console.log(`[DEBUG] Target: ${fullGameVersion}, Forge: ${forgeVersion}`);
-
-      if (!fs.existsSync(forgePath) || fs.readdirSync(forgePath).length === 0) {
-        webContents.send('launch-status', `Installing Forge ${forgeVersion}...`);
-        
-        // Формируем URL (у Forge Maven есть специфика для старых версий, но для новых формат такой)
-        const forgeUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${fullGameVersion}-${forgeVersion}/forge-${fullGameVersion}-${forgeVersion}-installer.jar`;
-
-        console.log(`[DEBUG] Trying to download: ${forgeUrl}`);
-        const installerPath = path.join(ROOT_DIR, 'forge-installer.jar');
-
-        try {
-          await downloadFile(forgeUrl, installerPath, webContents);
-          
-          const { spawn } = require('node:child_process');
-          const forgeProc = spawn(javaPath, [
-            '-Djava.net.preferIPv4Stack=true', // Помогает при загрузке библиотек
-            '-jar', 
-            installerPath, 
-            '--installClient', 
-            ROOT_DIR
-          ], { cwd: ROOT_DIR });
-
-          await new Promise((resolve, reject) => {
-            forgeProc.stdout.on('data', (data: any) => console.log(`[Forge] ${data}`));
-            forgeProc.stderr.on('data', (data: any) => console.error(`[Forge Error] ${data}`));
-            forgeProc.on('close', (code: number) => code === 0 ? resolve(true) : reject(new Error(`Exit code ${code}`)));
-          });
-
-          // Исправленная логика переименования
-          const defaultForgeFolder = path.join(ROOT_DIR, 'versions', forgeId);
-          if (fs.existsSync(defaultForgeFolder)) {
-            if (fs.existsSync(forgePath)) fs.rmSync(forgePath, { recursive: true, force: true });
-            fs.renameSync(defaultForgeFolder, forgePath);
-
-            const oldJson = path.join(forgePath, `${forgeId}.json`);
-            const newJson = path.join(forgePath, `${version}.json`);
-            if (fs.existsSync(oldJson)) {
-              let jsonContent = JSON.parse(fs.readFileSync(oldJson, 'utf-8'));
-              jsonContent.id = version;
-              fs.writeFileSync(newJson, JSON.stringify(jsonContent));
-              fs.unlinkSync(oldJson);
-            }
-          }
-        } catch (err: any) {
-          if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath);
-          throw new Error(`Forge fail: ${err.message}`);
-        } finally {
-          if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath);
-        }
-      }
-      launchVersion = version;
+    // Если тип custom — запускаем новую логику
+    if (versionObj.type === 'custom') {
+      await launchCustom(versionObj, nickname, webContents);
+    } 
+    // Если тип release или другой — запускаем ванилу
+    else {
+      const mcVersion = versionObj.gameVersion || versionObj.id;
+      await launchVanilla(mcVersion, nickname, webContents);
     }
-    // --- 3. ОБРАБОТКА СОБЫТИЙ ЛОГА ---
-    launcher.on('progress', (e: any) => {
-      webContents.send('download-progress', {
-        percent: e.percentage || 0,
-        current: (e.task / 1024 / 1024).toFixed(1),
-        total: (e.total / 1024 / 1024).toFixed(1),
-        isChecking: false
-      });
-    });
-
-    launcher.on('data', (e: string) => {
-      if (e.includes('Setting user:') || e.includes('Sound engine started')) {
-        webContents.send('version-downloaded', version); 
-        webContents.send('download-progress', null);
-        webContents.send('launch-status', 'Game Running');
-      }
-      console.log(`[GAME] ${e}`);
-    });
-
-    // --- 4. ПАРАМЕТРЫ ЗАПУСКА ---
-    const opts = {
-      authorization: authMethod(nickname),
-      root: ROOT_DIR,
-      javaPath,
-      version: {
-        // Здесь мы используем launchVersion вместо исходного version
-        number: (isFabric || isForge) ? (launchVersion.match(/(\d+\.\d+\.?\d*)/)?.[0] || "1.21.1") : launchVersion,
-        custom: (isFabric || isForge) ? launchVersion : undefined,
-        type: "release"
-      },
-      customArgs: ["-Dforge.earlydisplay=false"],
-      overrides: {
-        versionType: "release",
-        gameDirectory: path.join(ROOT_DIR, 'instances', launchVersion) // И здесь тоже
-      },
-      memory: { max: "4G", min: "1G" }
-    };
-
-    launcher.launch(opts);
-
-    launcher.launch(opts);
 
   } catch (err: any) {
-    console.error('Launch Error:', err);
+    console.error('[Launch Error]', err);
     webContents.send('launch-error', err.message);
-  } 
-});
-
-ipcMain.on('open-game-folder', () => {
-  const root = path.join(app.getPath('appData'), '.hard-monitoring');
-  if (!fs.existsSync(root)) fs.mkdirSync(root, { recursive: true });
-  shell.openPath(root);
-});
-
-
-ipcMain.handle('get-versions', async () => {
-  try {
-    // Данные уже загружены в переменную versionsData при запуске приложения
-    const { versions } = versionsData;
-    const versionsPath = path.join(ROOT_DIR, 'versions');
-
-    return versions.map((v: any) => {
-      const versionDir = path.join(versionsPath, v.id);
-      
-      // Проверяем, скачана ли папка с этой версией
-      let isDownloaded = false;
-      if (fs.existsSync(versionDir)) {
-        const files = fs.readdirSync(versionDir);
-        isDownloaded = files.length > 0;
-      }
-
-      return { 
-        ...v, 
-        isDownloaded 
-      };
-    });
-  } catch (e) { 
-    console.error("Error processing versions data:", e);
-    return []; 
+    webContents.send('game-closed');
   }
 });
-
-ipcMain.handle('reset-version', async (_, versionId) => {
-  try {
-    const versionDir = path.join(ROOT_DIR, 'versions', versionId);
-    if (fs.existsSync(versionDir)) {
-      fs.rmSync(versionDir, { recursive: true, force: true });
+// ======================================================
+// 5. WINDOW & APP
+// ======================================================
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1000, 
+    height: 650, 
+    frame: false, 
+    transparent: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.mjs'),
+      contextIsolation: true, 
+      nodeIntegration: false
     }
-    
-    // Также удалим установщик, если он остался
-    const installerPath = path.join(ROOT_DIR, 'forge-installer.jar');
-    if (fs.existsSync(installerPath)) fs.unlinkSync(installerPath);
+  });
 
-    return { success: true };
-  } catch (err: any) {
-    console.error('Reset error:', err);
-    return { success: false, error: err.message };
-  }
+  if (VITE_DEV_SERVER_URL) win.loadURL(VITE_DEV_SERVER_URL);
+  else win.loadFile(path.join(RENDERER_DIST, 'index.html'));
+}
+
+// Стандартные IPC
+ipcMain.handle('get-versions', async () => {
+  // 1. Получаем АКТУАЛЬНЫЙ путь из конфига прямо сейчас
+  const config = ConfigManager.load();
+  const currentGamePath = config.gamePath;
+
+  // 2. Проверяем наличие версий именно по этому пути
+  return (versionsData.versions as GameVersion[]).map(v => ({
+    ...v,
+    displayName: v.name || v.id,
+    isDownloaded: isVersionDownloaded(v.id, currentGamePath)
+  }));
 });
 
-ipcMain.on('open-external-link', (_event, url) => {
-  if (url && url.startsWith('http')) {
-    shell.openExternal(url)
-  }
+
+ipcMain.on('window-control', (_, action: 'minimize' | 'close') => {
+  if (action === 'minimize') win?.minimize()
+  if (action === 'close') app.quit()
 })
 
-app.on('ready', () => {
-  // Проверять обновления сразу после запуска
-  autoUpdater.checkForUpdatesAndNotify();
-});
-
-autoUpdater.on('update-available', () => {
-  if (win) {
-    win.webContents.send('update_available');
+ipcMain.on('open-game-folder', () => {
+  // Всегда берем путь из конфига, который актуален в этот момент
+  const currentConfig = ConfigManager.load();
+  
+  if (!fs.existsSync(currentConfig.gamePath)) {
+    fs.mkdirSync(currentConfig.gamePath, { recursive: true });
   }
+  
+  shell.openPath(currentConfig.gamePath);
 });
 
-autoUpdater.on('update-downloaded', () => {
-  autoUpdater.quitAndInstall();
+// ======================================================
+// 6. НАСТРОЙКИ (Сохранение в JSON и выбор папки через диалог Windows)
+// ======================================================
+
+
+export function setupSettingsHandlers() {
+  // 1. Получение текущих настроек
+  ipcMain.handle('get-settings', async () => {
+    return ConfigManager.load();
+  });
+
+  // 2. Сохранение настроек
+  ipcMain.handle('save-settings', async (_, newConfig) => {
+    try {
+      ConfigManager.save(newConfig);
+      return { success: true };
+    } catch (err) {
+      console.error('Save error:', err);
+      return { success: false };
+    }
+  });
+
+  // 3. Выбор папки (улучшенная версия)
+  ipcMain.handle('select-directory', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Выберите папку для установки игры',
+      buttonLabel: 'Выбрать папку',
+    });
+    return canceled ? null : filePaths[0];
+  });
+
+  // 4. Получение ДЕФОЛТНЫХ настроек (динамически для каждого юзера)
+ipcMain.handle('get-default-settings', async () => {
+    const defaults = {
+        ram: 4,
+        gamePath: path.join(app.getPath('appData'), '.hard-monitoring')
+    };
+    ConfigManager.save(defaults);
+    return defaults;
+  });
+} // <---
+
+app.whenReady().then(() => {
+  // 1. Сначала регистрируем обработчики настроек
+  setupSettingsHandlers(); 
+  
+  // 2. Только потом создаем окно
+  createWindow();
+  autoUpdater.checkForUpdatesAndNotify()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
 });
 
-// Добавим обработку ошибок для авто-апдейтера, чтобы приложение не падало
-autoUpdater.on('error', (error: any) => {
-  console.error('Ошибка авто-обновления:', error);
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
 });
-
-app.whenReady().then(createWindow);

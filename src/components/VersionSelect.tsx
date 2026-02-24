@@ -4,6 +4,7 @@ interface GameVersion {
   id: string;
   type: string;
   isDownloaded: boolean;
+  name?: string; // Добавляем опциональное имя для отображения
 }
 
 export default function VersionSelect({ 
@@ -89,10 +90,9 @@ export default function VersionSelect({
                   ${v.id === selected ? 'bg-[#00ff95]/10 text-[#00ff95]' : 'text-white/40 hover:bg-white/[0.03] hover:text-white'}
                 `}
               >
-                <div className="flex items-center gap-2">
-                  <div className={`w-1 h-1 ${v.isDownloaded ? 'bg-[#00ff95]' : 'bg-white/10 group-hover:bg-white/30'}`} />
-                  <span className="text-[9px] uppercase tracking-tighter" style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>{v.id}</span>
-                </div>
+                <span className="text-[9px] uppercase">
+                  {v.name || v.id} {/* Показываем имя, если оно есть */}
+                </span>
                 
                 {v.isDownloaded ? (
                    <span className="text-[6px] font-bold uppercase opacity-40">Ready</span>
