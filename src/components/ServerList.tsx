@@ -18,26 +18,23 @@ interface IServer {
   votesWeekly: number;
 }
 
-interface IApiResponse {
-  items: IServer[];
-}
-
 const ServerList = () => {
   const [servers, setServers] = useState<IServer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hoveredServerId, setHoveredServerId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchServers = async () => {
     try {
-      const response = await api.get<IApiResponse>('/servers', { params: { limit: 40 } });
+      const response = await api.get('/servers', { params: { limit: 40 } });
       const topServers = (response.data.items || [])
         .filter((s: IServer) => s.gameType?.toLowerCase().includes('java'))
-        .sort((a, b) => b.premiumVotes - a.premiumVotes || b.votesWeekly - a.votesWeekly)
-        .slice(0, 10) // СТРОГО 10 СЕРВЕРОВ
+        .sort((a: IServer, b: IServer) => b.premiumVotes - a.premiumVotes || b.votesWeekly - a.votesWeekly)
+        .slice(0, 10)
         .map((s: IServer) => {
           let cleanIp = s.ipAddress;
           if (typeof s.ipAddress === 'string' && s.ipAddress.trim().startsWith('{')) {
-            try { cleanIp = JSON.parse(s.ipAddress).java; } catch { cleanIp = s.ipAddress; }
+            try { cleanIp = JSON.parse(s.ipAddress).java; } catch {}
           }
           return { ...s, ipAddress: cleanIp };
         });
@@ -49,125 +46,126 @@ const ServerList = () => {
     }
   };
 
-  useEffect(() => {
-    fetchServers();
-  }, []);
+  useEffect(() => { fetchServers(); }, []);
 
-  const handleOpenLink = (url: string) => {
-    // Используем .send, так как openExternal обычно не прокинут напрямую
-    (window as any).ipcRenderer.send('open-external', url);
+  const handleCopyIp = (server: IServer) => {
+    navigator.clipboard.writeText(server.ipAddress);
+    setCopiedId(server._id);
+    setTimeout(() => setCopiedId(null), 1500);
   };
 
-    const handleQuickJoin = (server: IServer) => {
+  const handleOpenLink = (url: string) => {
+    (window as any).ipcRenderer.send('open-external-link', url); // было 'open-external'
+  };
+
+  const handleQuickJoin = (server: IServer) => {
     let finalIp = server.ipAddress;
-
-    // Если вдруг в ipAddress всё еще сидит строка с JSON (защита)
     if (typeof finalIp === 'string' && finalIp.includes('{"java"')) {
-        try {
-        const parsed = JSON.parse(finalIp);
-        finalIp = parsed.java;
-        } catch (e) {
-        console.error("Ошибка парсинга IP при входе:", e);
-        }
+      try { finalIp = JSON.parse(finalIp).java; } catch {}
     }
-
-    console.log("Запуск игры для сервера:", server.serverName, "IP:", finalIp);
-
     (window as any).ipcRenderer.send('launch-game', {
-        version: server.gameVersion,
-        nickname: 'Player', // Не забудь потом заменить на реальный ник
-        serverIp: finalIp 
+      version: server.gameVersion,
+      nickname: 'Player',
+      serverIp: finalIp
     });
-    };
+  };
 
   return (
-    <div className="flex flex-col bg-[#1e1e1e]/80 backdrop-blur-md border border-[#121212]/50 w-full overflow-hidden shadow-2xl">
-      
+    <div className="flex flex-col w-full bg-[#0f0f0f]">
+
       {/* HEADER */}
-      <div className="bg-[#121212]/60 px-2 py-1.5 border-b border-[#333]/30 flex justify-between items-center">
-        <span className="text-[#ffaa00] text-[10px] uppercase tracking-[0.2em] font-bold" style={{ fontFamily: 'MinecraftTen' }}>
-          Топ серверов
-        </span>
-        <span className="text-white/10 text-[8px] font-mono uppercase">Online</span>
+      <div className="px-3 py-2 border-b border-white/[0.05] flex items-center justify-between">
+        <span className="text-[9px] font-bold uppercase tracking-[0.25em] text-white/30">Серверы</span>
+        <button onClick={fetchServers} className="text-white/15 hover:text-white/40 transition-colors">
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
       </div>
 
-      {/* SERVER LIST */}
-      <div className="flex flex-col bg-black/5">
+      {/* LIST */}
+      <div className="flex flex-col divide-y divide-white/[0.03]">
         {loading ? (
-          <div className="p-4 text-center text-[#555] font-mono text-[8px] uppercase tracking-widest animate-pulse">
-            Синхронизация...
+          <div className="py-5 text-center text-[8px] uppercase tracking-widest text-white/15 animate-pulse">
+            Загрузка...
           </div>
-        ) : (
-          servers.map((server, index) => (
-            <div
-              key={server._id}
-              onMouseEnter={() => setHoveredServerId(server._id)}
-              onMouseLeave={() => setHoveredServerId(null)}
-              className="relative border-b border-[#121212]/20 last:border-0"
-            >
-              {/* Компактная строка */}
-              <div 
-                className="flex items-center justify-between py-1 px-2 hover:bg-white/5 transition-colors group cursor-pointer"
-                onClick={() => navigator.clipboard.writeText(server.ipAddress)}
-              >
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <span className="text-white/10 font-mono text-[8px] w-3 italic">{index + 1}</span>
-                  <div className="flex flex-col">
-                    <span className="text-[#bbb] text-[10px] font-bold group-hover:text-white truncate max-w-[150px]">
-                      {server.serverName.toUpperCase()}
-                    </span>
-                    <span className="text-[#00ff95]/30 text-[7px] font-mono leading-none">
-                      {server.ipAddress.toLowerCase()}
-                    </span>
-                  </div>
-                </div>
+        ) : servers.map((server, index) => (
+          <div
+            key={server._id}
+            onMouseEnter={() => setHoveredId(server._id)}
+            onMouseLeave={() => setHoveredId(null)}
+          >
+            {/* Строка сервера */}
+            <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-white/[0.02] transition-colors group">
+              
+              {/* Номер */}
+              <span className="text-[8px] text-white/15 font-mono w-3 flex-shrink-0">{index + 1}</span>
 
-                <div className="flex items-center gap-2">
-                   <div className="flex flex-col items-end">
-                      <span className="text-white/20 text-[6px] font-bold border border-white/5 px-1 uppercase mb-0.5">
-                        {server.gameVersion}
-                      </span>
-                      <span className="text-[#00ff95]/70 font-mono text-[9px] font-black leading-none">
-                        {server.playersCount}
-                      </span>
-                   </div>
-                </div>
+              {/* Название + IP */}
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-medium text-white/60 group-hover:text-white/80 truncate block transition-colors">
+                  {server.serverName}
+                </span>
+                <span className="text-[8px] text-white/20 font-mono truncate block">
+                  {server.ipAddress}
+                </span>
               </div>
 
-              {/* Компактный выезд кнопок (высота уменьшена) */}
-              <div className={`
-                overflow-hidden transition-all duration-200 ease-in-out flex bg-black/40
-                ${hoveredServerId === server._id ? 'max-h-8 border-t border-[#00ff95]/10' : 'max-h-0'}
-              `}>
+              {/* Версия */}
+              <span className="text-[8px] text-white/35 border border-white/[0.08] px-1.5 py-0.5 rounded flex-shrink-0">
+                {server.gameVersion}
+              </span>
+            </div>
+
+            {/* Кнопки при hover */}
+            <div className={`overflow-hidden transition-all duration-150 ${
+              hoveredId === server._id ? 'max-h-7' : 'max-h-0'
+            }`}>
+              <div className="flex border-t border-white/[0.04]">
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleQuickJoin(server); }}
-                  className="flex-1 py-1.5 bg-[#00ff95]/5 hover:bg-[#00ff95]/20 text-[#00ff95] text-[8px] font-black uppercase tracking-widest transition-all"
-                  style={{ fontFamily: 'MinecraftSeven, sans-serif' }}
+                  onClick={() => handleQuickJoin(server)}
+                  className="flex-1 py-1 text-[8px] font-bold uppercase tracking-wider text-[#1bd96a]/70 hover:text-[#1bd96a] hover:bg-[#1bd96a]/5 transition-colors"
                 >
                   Играть
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleOpenLink(`https://hardmonitoring.ru/server/${server._id}`); }}
-                  className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white/30 hover:text-white text-[7px] font-bold uppercase border-l border-white/5 transition-all"
+                  onClick={() => handleCopyIp(server)}
+                  className="px-3 py-1 text-[8px] border-l border-white/[0.04] text-white/20 hover:text-white/50 hover:bg-white/[0.02] transition-colors"
+                >
+                  {copiedId === server._id ? '✓' : 'IP'}
+                </button>
+                <button
+                  onClick={() => handleOpenLink(`https://hardmonitoring.ru/server/${server._id}`)}
+                  className="px-3 py-1 text-[8px] border-l border-white/[0.04] text-white/20 hover:text-white/50 hover:bg-white/[0.02] transition-colors"
                 >
                   Инфо
                 </button>
               </div>
             </div>
-          ))
-        )}
+          </div>
+        ))}
       </div>
 
       {/* FOOTER */}
-      <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-[#121212]/90 border-t border-white/5">
-        <button onClick={() => handleOpenLink('https://hardmonitoring.ru/monitoring')} className="py-1.5 bg-[#4a4a4a]/60 hover:bg-[#5a5a5a] text-white text-[7px] font-bold uppercase" style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>
+     {/* FOOTER */}
+      <div className="flex border-t border-white/[0.05]">
+        <button
+          onClick={() => handleOpenLink('https://hardmonitoring.ru/monitoring')}
+          className="flex-1 py-2 text-[8px] font-bold uppercase tracking-wider text-white/50 hover:text-white hover:bg-white/[0.04] transition-all border-r border-white/[0.05]"
+        >
           Мониторинг
         </button>
-        <button onClick={() => handleOpenLink('https://hardmonitoring.ru/monitoring/workbench')} className="py-1.5 bg-[#3c8527]/60 hover:bg-[#47a02e] text-white text-[7px] font-bold uppercase" style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>
+        <button
+          onClick={() => handleOpenLink('https://hardmonitoring.ru/monitoring/workbench')}
+          className="flex-1 py-2 text-[8px] font-bold uppercase tracking-wider text-[#1bd96a]/60 hover:text-[#1bd96a] hover:bg-[#1bd96a]/[0.05] transition-all border-r border-white/[0.05]"
+        >
           Добавить
         </button>
-        <button onClick={() => handleOpenLink('https://hardmonitoring.ru/monitoring/workbench')} className="py-1.5 bg-yellow-600/60 hover:bg-yellow-700 text-white text-[7px] font-bold uppercase" style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>
-          Vip
+        <button
+          onClick={() => handleOpenLink('https://hardmonitoring.ru/monitoring/workbench')}
+          className="flex-1 py-2 text-[8px] font-bold uppercase tracking-wider text-yellow-400/60 hover:text-yellow-400 hover:bg-yellow-400/[0.05] transition-all"
+        >
+          VIP
         </button>
       </div>
     </div>

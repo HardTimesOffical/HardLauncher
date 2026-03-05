@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
@@ -11,14 +11,17 @@ const defaultConfig = {
   ram: 4,
   gamePath: DEFAULT_GAME_PATH,
   lastNickname: '',   
-  lastVersion: ''      
-};
-
+  lastVersion: '',
+  versionFilters: { // Добавь это сюда!
+    showRelease: true,
+    showFabric: true,
+    showOld: false
+  }
+}
 
 
 export const ConfigManager = {
   load() {
-    // Если файла нет — создаем его сразу
     if (!fs.existsSync(CONFIG_PATH)) {
       this.save(defaultConfig);
       return defaultConfig;
@@ -35,5 +38,12 @@ export const ConfigManager = {
     const dir = path.dirname(CONFIG_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+
+    // Находим главное окно и отправляем событие без импорта из main
+    const allWindows = BrowserWindow.getAllWindows();
+    if (allWindows.length > 0) {
+      allWindows[0].webContents.send('filters-changed');
+      console.log('[Config] Сигнал filters-changed отправлен');
+    }
   }
 };

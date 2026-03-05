@@ -8,47 +8,55 @@ interface ProgressData {
 }
 
 interface Props {
-  progress: ProgressData | null; 
+  progress: ProgressData | null;
   statusText: string;
 }
 
 const LaunchProgress: React.FC<Props> = ({ progress, statusText }) => {
   if (progress === null) return null;
 
-  // Если есть хоть какой-то процент или текст статуса — показываем
   const showStats = progress.total !== "0" && progress.total !== "0.0";
+  const percent = Math.round(progress.percent);
 
   return (
-    <div className="relative w-full animate-in slide-in-from-bottom-2 duration-300">
-      <div className="relative h-5 w-full bg-[#0a0a0a] border-t border-[#333] overflow-hidden">
-        
-        {/* Полоска */}
-        <div 
-          className="h-full bg-[#3c8527] transition-all duration-500 ease-out relative" 
-          style={{ width: `${progress.percent}%` }} 
+    <div className="w-full flex-shrink-0 border-t border-white/[0.06] bg-[#0a0a0a] animate-in slide-in-from-bottom-1 duration-200">
+      
+      {/* Прогресс линия сверху */}
+      <div className="h-[2px] w-full bg-white/[0.04] relative overflow-hidden">
+        <div
+          className="absolute inset-y-0 left-0 bg-[#1bd96a] transition-all duration-500 ease-out"
+          style={{ width: `${progress.percent}%` }}
         />
+        {/* Бегущий блик */}
+        {percent < 100 && (
+          <div
+            className="absolute inset-y-0 w-20 bg-gradient-to-r from-transparent via-[#1bd96a]/40 to-transparent animate-pulse"
+            style={{ left: `${Math.max(0, progress.percent - 10)}%` }}
+          />
+        )}
+      </div>
 
-        <div className="absolute inset-0 flex items-center justify-between px-3 pointer-events-none">
-          <div className="flex items-center gap-2">
-            <div className="h-1.5 w-1.5 bg-[#00ff95] shadow-[0_0_5px_#00ff95]" />
-            <span className="text-[8px] text-white/90 uppercase tracking-widest"
-                  style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>
-              {statusText} 
-              {showStats && (
-                <span className="ml-2 text-white/30">
-                  [{progress.current} / {progress.total}]
-                </span>
-              )}
+      {/* Текст статуса */}
+      <div className="h-7 flex items-center justify-between px-4">
+        <div className="flex items-center gap-2">
+          {/* Пульсирующая точка */}
+          <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1bd96a] opacity-60" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#1bd96a]" />
+          </span>
+          <span className="text-[9px] text-white/40 uppercase tracking-widest">
+            {statusText}
+          </span>
+          {showStats && (
+            <span className="text-[9px] text-white/20">
+              {progress.current} / {progress.total}
             </span>
-          </div>
-          
-          <div className="flex items-center">
-            <span className="text-[9px] text-white/90 tabular-nums"
-                  style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>
-              {Math.round(progress.percent)}%
-            </span>
-          </div>
+          )}
         </div>
+
+        <span className="text-[9px] font-mono text-[#1bd96a]/60 tabular-nums">
+          {percent}%
+        </span>
       </div>
     </div>
   );

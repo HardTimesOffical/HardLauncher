@@ -1,8 +1,11 @@
 import React from 'react';
 
+// Добавляем 'profile' в список вкладок
+type TabType = 'play' | 'profile' | 'settings' | 'auth';
+
 interface TitleBarProps {
-  activeTab: 'play' | 'settings';
-  onTabChange: (tab: 'play' | 'settings') => void;
+  activeTab: TabType;
+  onTabChange: (tab: TabType) => void;
 }
 
 const TitleBar: React.FC<TitleBarProps> = ({ activeTab, onTabChange }) => {
@@ -10,6 +13,15 @@ const TitleBar: React.FC<TitleBarProps> = ({ activeTab, onTabChange }) => {
     // @ts-ignore
     window.ipcRenderer?.send('window-control', action);
   };
+
+  // Вспомогательная функция для стилей кнопок, чтобы не дублировать код
+  const getBtnClass = (tab: TabType) => `
+    px-5 h-full text-[10px] uppercase tracking-[0.2em] transition-all font-bold border-r border-[#333]
+    ${activeTab === tab 
+      ? 'text-[#00ff95] bg-[#1e1e1e] shadow-[inset_0_-2px_0_#00ff95]' 
+      : 'text-[#666] hover:text-[#bbb] hover:bg-[#1a1a1a] no-drag'
+    }
+  `;
 
   return (
     <header className="relative z-[100] flex items-center justify-between h-9 bg-[#121212] border-b border-[#333] select-none">
@@ -24,24 +36,31 @@ const TitleBar: React.FC<TitleBarProps> = ({ activeTab, onTabChange }) => {
       <nav className="relative z-10 flex h-full no-drag">
         <button
           onClick={() => onTabChange('play')}
-          className={`px-5 h-full text-[10px] uppercase tracking-[0.2em] transition-all font-bold border-r border-[#333] ${
-            activeTab === 'play' 
-              ? 'text-[#00ff95] bg-[#1e1e1e] shadow-[inset_0_-2px_0_#00ff95]' 
-              : 'text-[#666] hover:text-[#bbb] hover:bg-[#1a1a1a]'
-          }`}
+          className={getBtnClass('play')}
         >
           Играть
         </button>
+
+        {/* НОВАЯ ВКЛАДКА ПРОФИЛЬ */}
+        <button
+          onClick={() => onTabChange('profile')}
+          className={getBtnClass('profile')}
+        >
+          Профиль
+        </button>
+
         <button
           onClick={() => onTabChange('settings')}
-          className={`px-5 h-full text-[10px] uppercase tracking-[0.2em] transition-all font-bold border-r border-[#333] ${
-            activeTab === 'settings' 
-              ? 'text-[#00ff95] bg-[#1e1e1e] shadow-[inset_0_-2px_0_#00ff95]' 
-              : 'text-[#666] hover:text-[#bbb] hover:bg-[#1a1a1a]'
-          }`}
+          className={getBtnClass('settings')}
         >
           Настройки
         </button>
+
+        {activeTab === 'auth' && (
+          <button className={getBtnClass('auth')}>
+            Авторизация
+          </button>
+        )}
       </nav>
 
       {/* ЦЕНТРАЛЬНАЯ ЧАСТЬ */}

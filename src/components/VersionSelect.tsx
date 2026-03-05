@@ -4,26 +4,26 @@ interface GameVersion {
   id: string;
   type: string;
   isDownloaded: boolean;
-  name?: string; // Добавляем опциональное имя для отображения
+  name?: string;
 }
 
-export default function VersionSelect({ 
-  versions, 
-  selected, 
-  onSelect, 
-  disabled 
-}: { 
-  versions: GameVersion[], 
-  selected: string, 
+export default function VersionSelect({
+  versions,
+  selected,
+  onSelect,
+  disabled
+}: {
+  versions: GameVersion[],
+  selected: string,
   onSelect: (id: string) => void,
-  disabled: boolean 
+  disabled: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
@@ -31,80 +31,111 @@ export default function VersionSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedVersionData = versions.find(v => v.id === selected);
+  const selectedVersion = versions.find(v => v.id === selected);
+
+  const getTypeLabel = (v: GameVersion) => {
+    if (v.type === 'custom') {
+      if (v.name?.toLowerCase().includes('fabric')) return 'Fabric';
+      if (v.name?.toLowerCase().includes('forge')) return 'Forge';
+      return 'Mod';
+    }
+    return 'Vanilla';
+  };
+
+  const getTypeBadgeClass = (v: GameVersion) => {
+    if (v.name?.toLowerCase().includes('fabric')) return 'text-yellow-400/60 border-yellow-400/20';
+    if (v.name?.toLowerCase().includes('forge')) return 'text-orange-400/60 border-orange-400/20';
+    return 'text-white/20 border-white/[0.08]';
+  };
+
+  // Установленные сверху
+  const sorted = [...versions].sort((a, b) => {
+    if (a.isDownloaded && !b.isDownloaded) return -1;
+    if (!a.isDownloaded && b.isDownloaded) return 1;
+    return 0;
+  });
 
   return (
-    <div className="flex flex-col relative" ref={containerRef}>
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 2px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.02);
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(0, 255, 149, 0.2);
-        }
-      `}</style>
+    <div className="relative no-drag" ref={containerRef}>
 
-      {/* Main Selector */}
-      <div 
+      {/* Селектор */}
+      <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`
-          no-drag flex items-center justify-between gap-3 px-3 h-10 rounded-sm border transition-all duration-150 cursor-pointer
-          ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/[0.04] active:bg-white/[0.06]'}
-          ${isOpen ? 'bg-white/[0.08] border-[#00ff95]/50' : 'bg-white/[0.02] border-white/10'}
-        `}
+        className={`flex items-center justify-between gap-2 px-3 h-9 rounded-lg border transition-all cursor-pointer min-w-[150px]
+          ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/[0.04]'}
+          ${isOpen ? 'bg-white/[0.06] border-white/[0.12]' : 'bg-white/[0.02] border-white/[0.06]'}`}
       >
-        <div className="flex items-center gap-2">
-          <div className={`w-1 h-1 ${selectedVersionData?.isDownloaded ? 'bg-[#00ff95] shadow-[0_0_8px_#00ff95]' : 'bg-white/20'}`} />
-          <span className="text-[10px] text-white/90 uppercase tracking-wider"
-                style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>
-            {selected || 'Select...'}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+            selectedVersion?.isDownloaded ? 'bg-[#1bd96a]' : 'bg-white/15'
+          }`} />
+          <span className={`text-[10px] truncate font-medium ${
+            selectedVersion?.isDownloaded ? 'text-white/80' : 'text-white/35'
+          }`}>
+            {selectedVersion?.name || selected || 'Выбрать...'}
           </span>
         </div>
-        <svg 
-          className={`w-2 h-2 text-white/20 transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#00ff95]' : ''}`} 
+        <svg
+          className={`w-2.5 h-2.5 flex-shrink-0 transition-transform duration-200 ${
+            isOpen ? 'rotate-180 text-white/50' : 'text-white/20'
+          }`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
-          <path strokeLinecap="square" strokeWidth="4" d="M19 9l-7 7-7-7" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </div>
 
-      {/* Dropdown Menu */}
+      {/* Дропдаун */}
       {isOpen && (
-        <div className="absolute bottom-[calc(100%+12px)] left-0 w-52 bg-[#0c0c0c] border border-white/10 rounded-sm shadow-[0_-10px_40px_rgba(0,0,0,0.8)] z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-          <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
-            <div className="px-2 py-1.5 mb-1 border-b border-white/5">
-               <span className="text-[7px] text-white/20 uppercase tracking-[0.2em]" style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>Available Versions</span>
-            </div>
-            {versions.map((v) => (
-              <div
-                key={v.id}
-                onClick={() => {
-                  onSelect(v.id);
-                  setIsOpen(false);
-                }}
-                className={`
-                  flex items-center justify-between px-2 py-2 rounded-sm cursor-pointer transition-all mb-0.5 group
-                  ${v.id === selected ? 'bg-[#00ff95]/10 text-[#00ff95]' : 'text-white/40 hover:bg-white/[0.03] hover:text-white'}
-                `}
-              >
-                <span className="text-[9px] uppercase">
-                  {v.name || v.id} {/* Показываем имя, если оно есть */}
-                </span>
-                
-                {v.isDownloaded ? (
-                   <span className="text-[6px] font-bold uppercase opacity-40">Ready</span>
-                ) : (
-                   <div className="p-1 bg-white/5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                     <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 24 24">
-                       <path d="M12 15l-4-4h3V4h2v7h3l-4 4zM5 18v2h14v-2H5z"/>
-                     </svg>
-                   </div>
-                )}
-              </div>
-            ))}
+        <div className="absolute bottom-[calc(100%+6px)] left-0 w-60 bg-[#111] border border-white/[0.08] rounded-xl shadow-2xl z-[200] overflow-hidden animate-fade-in">
+
+          <div className="px-3 py-2 border-b border-white/[0.05]">
+            <span className="text-[8px] uppercase text-white/20 tracking-widest">Версии игры</span>
+          </div>
+
+          <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-0.5">
+            {sorted.map((v) => {
+              const isActive = v.id === selected;
+              return (
+                <div
+                  key={v.id}
+                  onClick={() => { onSelect(v.id); setIsOpen(false); }}
+                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-all group
+                    ${isActive ? 'bg-[#1bd96a]/10' : 'hover:bg-white/[0.04]'}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                      v.isDownloaded
+                        ? isActive ? 'bg-[#1bd96a]' : 'bg-[#1bd96a]/50'
+                        : 'bg-white/10'
+                    }`} />
+                    <span className={`text-[10px] truncate ${
+                      v.isDownloaded
+                        ? isActive ? 'text-[#1bd96a] font-semibold' : 'text-white/80'
+                        : 'text-white/30'
+                    }`}>
+                      {v.name || v.id}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className={`text-[7px] font-bold uppercase border px-1.5 py-0.5 rounded ${getTypeBadgeClass(v)}`}>
+                      {getTypeLabel(v)}
+                    </span>
+                    {isActive && v.isDownloaded && (
+                      <svg className="w-3 h-3 text-[#1bd96a]" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                      </svg>
+                    )}
+                    {!v.isDownloaded && (
+                      <svg className="w-3 h-3 text-white/15 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

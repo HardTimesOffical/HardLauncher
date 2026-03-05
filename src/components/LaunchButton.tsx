@@ -5,19 +5,18 @@ interface ProgressData {
   current: string | number;
   total: string | number;
   isChecking?: boolean;
-  unit?: string; // "MB" или "шт."
+  unit?: string;
 }
 
 interface LaunchButtonProps {
   progress: ProgressData | null;
   isDownloaded: boolean;
-  isLaunching: boolean; // Добавляем новый проп
+  isLaunching: boolean;
   onLaunch: () => void;
 }
 
 const LaunchButton: React.FC<LaunchButtonProps> = ({ progress, isDownloaded, isLaunching, onLaunch }) => {
   
-  // Определяем приоритетное состояние кнопки
   const getButtonState = () => {
     if (progress !== null) return 'downloading';
     if (isLaunching) return 'launching';
@@ -27,84 +26,106 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({ progress, isDownloaded, isL
 
   const state = getButtonState();
   const isDisabled = state === 'downloading' || state === 'launching';
-  
-  // Улучшенная логика subText
- const subText = React.useMemo(() => {
-  if (progress !== null) {
-    if (progress.isChecking || !progress.total || progress.total === "0.0") {
-      return "Анализ файлов...";
-    }
-    
-    // Если это загрузка ассетов (их много), пишем "файлов"
-    const unit = progress.unit || (parseInt(progress.total.toString()) > 1000 ? "файлов" : "MB");
-    return `${progress.current} / ${progress.total} ${unit}`;
-  }
-  
-  if (isLaunching) return "Запуск процесса...";
-  if (isDownloaded) return "Версия готова";
-  return "Требуется загрузка";
-}, [progress, isLaunching, isDownloaded]);
 
-    
+  const subText = React.useMemo(() => {
+    if (progress !== null) {
+      if (progress.isChecking || !progress.total || progress.total === "0.0") {
+        return "Проверка файлов...";
+      }
+      const unit = progress.unit || (parseInt(progress.total.toString()) > 1000 ? "файлов" : "MB");
+      return `${progress.current} / ${progress.total} ${unit}`;
+    }
+    if (isLaunching) return "Запуск...";
+    if (isDownloaded) return "Готово к игре";
+    return "Нужна загрузка";
+  }, [progress, isLaunching, isDownloaded]);
+
+  const bgColor = {
+    downloading: 'bg-[#1a1a1a] border-white/10',
+    launching:   'bg-[#1a2e1a] border-[#2d5a1e]/50',
+    play:        'bg-[#1bd96a]/10 border-[#1bd96a]/30 hover:bg-[#1bd96a]/15 hover:border-[#1bd96a]/50',
+    install:     'bg-[#1a2440] border-[#2d4a8a]/50 hover:bg-[#1e2d50] hover:border-[#3a5aa0]/60',
+  }[state];
+
+  const textColor = {
+    downloading: 'text-white/50',
+    launching:   'text-[#4a9e3a]',
+    play:        'text-[#1bd96a]',
+    install:     'text-[#6b9fe4]',
+  }[state];
+
+  const iconColor = {
+    downloading: 'text-white/20',
+    launching:   'text-[#4a9e3a]',
+    play:        'text-[#1bd96a]',
+    install:     'text-[#6b9fe4]',
+  }[state];
+
   return (
     <button
-  disabled={isDisabled}
-  onClick={onLaunch}
-  className={`
-    group relative overflow-hidden transform active:scale-[0.97] transition-all duration-100
-    /* Внешняя тень и рамка как на скрине */
-    border-b-[4px] border-black/40 active:border-b-0 active:translate-y-[2px]
-  `}
->
-  {/* Основной фон кнопки с градиентом */}
-  <div className={`absolute inset-0 transition-all duration-300 ${
-    state === 'downloading' ? 'bg-slate-700' : 
-    state === 'launching' ? 'bg-[#2d631d]' : 
-    state === 'play' ? 'bg-[#3c8527] hover:bg-[#479a2f]' : 
-    'bg-[#1e448a] hover:bg-[#2552a5]'
-  }`} />
+      disabled={isDisabled}
+      onClick={onLaunch}
+      className={`
+        group relative overflow-hidden rounded-xl border transition-all duration-200
+        ${bgColor}
+        ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer active:scale-[0.98]'}
+      `}
+    >
+      {/* Прогресс-бар подложка */}
+      {progress !== null && (
+        <div
+          className="absolute inset-y-0 left-0 bg-[#1bd96a]/5 transition-all duration-500 ease-out"
+          style={{ width: `${progress.percent}%` }}
+        />
+      )}
 
-  {/* Верхний светлый блик для объема (как на скрине) */}
-  <div className="absolute inset-x-0 top-0 h-[2px] bg-white/20" />
+      <div className="relative h-12 px-5 flex items-center gap-4 min-w-[220px]">
+        
+        {/* Иконка слева */}
+        <div className={`flex-shrink-0 ${iconColor} transition-colors`}>
+          {isDisabled ? (
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : state === 'play' ? (
+            <svg className="w-4 h-4 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15l-4-4h3V4h2v7h3l-4 4zM5 18v2h14v-2H5z" />
+            </svg>
+          )}
+        </div>
 
-  {/* Прогресс заливка (более плотная, чтобы было видно на зеленом) */}
-  {progress !== null && (
-    <div 
-      className="absolute inset-y-0 left-0 bg-white/30 transition-all duration-500 ease-out shadow-[0_0_15px_rgba(255,255,255,0.3)]"
-      style={{ width: `${progress.percent}%` }}
-    />
-  )}
-
-  <div className="relative h-14 px-8 flex items-center gap-4 min-w-[280px] justify-between">
-        <div className="flex flex-col items-start">
-          <span className="text-[15px] font-bold uppercase tracking-tight leading-none text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]">
-            {state === 'downloading' ? 'Установка' : 
-             state === 'launching' ? 'Запуск...' : 
-             state === 'play' ? 'Играть' : 'Установить'}
+        {/* Текст */}
+        <div className="flex flex-col items-start flex-1">
+          <span className={`text-[13px] font-bold leading-none ${textColor} transition-colors`}>
+            {state === 'downloading' ? 'Установка' :
+             state === 'launching'   ? 'Запуск' :
+             state === 'play'        ? 'Играть' : 'Установить'}
           </span>
-          
-          {/* ИСПОЛЬЗУЕМ ПЕРЕМЕННУЮ ТУТ */}
-          <span className="text-[10px] font-bold mt-1 text-white/70 uppercase tracking-tighter">
+          <span className="text-[9px] text-white/25 mt-0.5 uppercase tracking-wider">
             {subText}
           </span>
-    </div>
-    
-    {/* Иконка "Стрелочка" как на скрине */}
-    <div className="flex items-center justify-center">
-      {isDisabled ? (
-          <svg className="w-5 h-5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-      ) : (
-        /* Символ > из шрифта или SVG */
-        <span className="text-white text-2xl font-light opacity-80 group-hover:translate-x-1 transition-transform">
-          ›
-        </span>
-      )}
-    </div>
-  </div>
-</button>
+        </div>
+
+        {/* Прогресс % или стрелка */}
+        <div className={`flex-shrink-0 text-[11px] font-mono ${iconColor} transition-colors`}>
+          {progress !== null ? (
+            <span>{Math.round(progress.percent)}%</span>
+          ) : (
+            <svg
+              className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          )}
+        </div>
+      </div>
+    </button>
   );
 };
 

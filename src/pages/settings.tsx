@@ -2,12 +2,22 @@ import { useState, useEffect } from 'react';
 import PathInput from '../components/settings/PathInput';
 import RamSlider from '../components/settings/RamSlider';
 
+interface VersionFilters {
+  showRelease: boolean;
+  showFabric: boolean;
+  showOld: boolean;
+}
+
 function Settings() {
   const [ram, setRam] = useState(4);
   const [gamePath, setGamePath] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+  const [filters, setFilters] = useState<VersionFilters>({
+    showRelease: true,
+    showFabric: true,
+    showOld: false,
+  });
 
-  // ЗАГРУЗКА: Получаем данные при открытии окна
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -15,6 +25,7 @@ function Settings() {
         if (config) {
           setRam(config.ram || 4);
           setGamePath(config.gamePath || '');
+          if (config.versionFilters) setFilters(config.versionFilters);
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -23,7 +34,6 @@ function Settings() {
     loadData();
   }, []);
 
-  // ВЫБОР ПАПКИ
   const handleSelectPath = async () => {
     try {
       const newPath = await window.ipcRenderer.invoke('select-directory');
@@ -33,107 +43,148 @@ function Settings() {
     }
   };
 
-  // СОХРАНЕНИЕ
   const handleSave = async () => {
     try {
-      const result = await window.ipcRenderer.invoke('save-settings', { ram, gamePath });
+      const result = await window.ipcRenderer.invoke('save-settings', {
+        ram, 
+        gamePath, 
+        versionFilters: filters,
+      });
+      
       if (result.success) {
         setIsSaved(true);
-        // ВАЖНО: Заставляем бэкенд пересчитать статусы установленных версий
-        await window.ipcRenderer.invoke('get-versions'); 
-        
-        setTimeout(() => setIsSaved(false), 3000);
+        // Теперь бэкенд (ConfigManager) сам отправит 'filters-changed'
+        // Главный экран его поймает и обновит список.
+        setTimeout(() => setIsSaved(false), 2000);
       }
-    } catch (err) {
+    } catch {
       alert('Ошибка при сохранении');
     }
   };
 
-  // СБРОС К ДЕФОЛТАМ
+  
+
   const handleResetToDefault = async () => {
     if (confirm('Сбросить все настройки до стандартных?')) {
       try {
-        // Бэкенд возвращает дефолты и САМ сохраняет их в конфиг
         const defaults = await window.ipcRenderer.invoke('get-default-settings');
-        
         setRam(defaults.ram);
         setGamePath(defaults.gamePath);
-        
-        // Показываем успех, так как бэкенд уже их записал
+        setFilters({ showRelease: true, showFabric: true, showOld: false });
         setIsSaved(true);
-        
-        // Сразу просим бэкенд обновить список версий для нового пути
         await window.ipcRenderer.invoke('get-versions');
-        
-        setTimeout(() => setIsSaved(false), 3000);
+        setTimeout(() => setIsSaved(false), 2000);
       } catch (err) {
         console.error('Reset error:', err);
       }
     }
   };
 
+  const toggleFilter = (key: keyof VersionFilters) => {
+    setFilters(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const filterOptions: { key: keyof VersionFilters; label: string; desc: string; labelClass: string }[] = [
+    { key: 'showRelease', label: 'Релизы', desc: 'Vanilla (1.x.x)', labelClass: 'text-white/60' },
+    { key: 'showFabric', label: 'Fabric', desc: 'Мод-загрузчик', labelClass: 'text-yellow-400/80' },
+    { key: 'showOld', label: 'Старые', desc: 'Ниже 1.13', labelClass: 'text-white/35' },
+  ];
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      {/* Контейнер окна */}
-      <div className="w-[600px] max-h-[85vh] flex flex-col bg-[#0c0c0c] border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
-        
+    <div className="w-full max-w-2xl animate-scale-in">
+      <div className="bg-[#111] border border-white/[0.06] rounded-2xl overflow-hidden shadow-2xl">
+
         {/* HEADER */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-white/5 bg-white/[0.02]">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase font-bold text-[#00ff95] tracking-[0.3em]" style={{ fontFamily: 'MinecraftSeven, sans-serif' }}>
-              System Settings
-            </span>
-            <span className="text-[7px] text-white/20 uppercase tracking-widest mt-1">Configure your game environment</span>
-          </div>
-          <div className="flex gap-2">
-            <div className="w-1.5 h-1.5 bg-[#00ff95] shadow-[0_0_5px_#00ff95] rounded-full animate-pulse" />
+        <div className="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between">
+          <div>
+            <h2 className="text-[13px] font-bold text-white">Настройки</h2>
+            <p className="text-[9px] text-white/25 mt-0.5">Конфигурация игрового окружения</p>
           </div>
         </div>
 
-        {/* BODY */}
-        <div className="p-8 space-y-10 overflow-y-auto custom-scrollbar">
-          
-          {/* Настройка RAM */}
-          <section className="space-y-4">
-            <RamSlider value={ram} onChange={setRam} />
-          </section>
+        {/* BODY — двухколоночный грид */}
+        <div className="p-5 grid grid-cols-2 gap-5">
 
-          {/* Настройка Пути */}
-          <section className="space-y-4 pt-4 border-t border-white/5">
-            <PathInput 
-              label="Game Directory" 
-              value={gamePath} 
-              onSelect={handleSelectPath} 
-            />
-            <p className="text-[7px] text-white/20 uppercase px-1">
-              * Все версии игры и ассеты будут скачиваться в эту папку
-            </p>
-          </section>
-          
+          {/* Левая колонка */}
+          <div className="flex flex-col gap-4">
+
+            {/* RAM */}
+            <section>
+              <p className="text-[8px] uppercase font-bold text-white/20 tracking-widest mb-2">Память (RAM)</p>
+              <RamSlider value={ram} onChange={setRam} />
+            </section>
+
+            {/* PATH */}
+            <section className="border-t border-white/[0.05] pt-4">
+              <p className="text-[8px] uppercase font-bold text-white/20 tracking-widest mb-2">Директория игры</p>
+              <PathInput label="Папка установки" value={gamePath} onSelect={handleSelectPath} />
+              <p className="text-[8px] text-white/15 mt-1.5">
+                Версии и ассеты сохраняются сюда
+              </p>
+            </section>
+          </div>
+
+          {/* Правая колонка */}
+          <div className="flex flex-col gap-4">
+            <section>
+              <p className="text-[8px] uppercase font-bold text-white/20 tracking-widest mb-2">Отображение версий</p>
+              <div className="flex flex-col gap-1.5">
+                {filterOptions.map(opt => (
+                  <div
+                    key={opt.key}
+                    onClick={() => toggleFilter(opt.key)}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl border cursor-pointer transition-all
+                      ${filters[opt.key]
+                        ? 'bg-white/[0.04] border-white/[0.08]'
+                        : 'bg-transparent border-white/[0.03] opacity-40'
+                      }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className={`text-[11px] font-semibold ${opt.labelClass}`}>
+                        {opt.label}
+                      </span>
+                      <span className="text-[8px] text-white/20">{opt.desc}</span>
+                    </div>
+
+                    {/* Toggle */}
+                    <div className={`w-8 h-4 rounded-full border transition-all relative flex-shrink-0
+                      ${filters[opt.key]
+                        ? 'bg-[#1bd96a]/20 border-[#1bd96a]/30'
+                        : 'bg-white/[0.03] border-white/[0.08]'
+                      }`}
+                    >
+                      <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all
+                        ${filters[opt.key]
+                          ? 'left-[17px] bg-[#1bd96a]'
+                          : 'left-0.5 bg-white/20'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
         </div>
 
         {/* FOOTER */}
-        <div className="p-5 bg-black/40 border-t border-white/5 flex items-center gap-4">
-          <div className="flex-1 flex items-center">
+        <div className="px-5 py-3 border-t border-white/[0.06] flex items-center gap-2">
+          <div className="flex-1">
             {isSaved && (
-              <span className="text-[8px] text-[#00ff95] font-bold uppercase tracking-widest animate-in slide-in-from-left-2">
-                ✓ Настройки применены
+              <span className="text-[9px] text-[#1bd96a] font-bold uppercase tracking-wider">
+                ✓ Сохранено
               </span>
             )}
           </div>
-
-          <button 
+          <button
             onClick={handleResetToDefault}
-            className="px-6 h-9 border border-white/10 text-[8px] uppercase font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all"
-            style={{ fontFamily: 'MinecraftSeven, sans-serif' }}
+            className="px-3 py-1.5 rounded-lg text-[8px] font-bold uppercase tracking-wider text-white/25 border border-white/[0.05] hover:text-white/50 hover:bg-white/[0.03] transition-all"
           >
             По умолчанию
           </button>
-
-          <button 
+          <button
             onClick={handleSave}
-            className="px-10 h-9 bg-[#00ff95] text-black text-[9px] font-black uppercase tracking-[0.2em] hover:bg-[#00ff95]/80 active:scale-95 transition-all"
-            style={{ fontFamily: 'MinecraftSeven, sans-serif' }}
+            className="px-5 py-1.5 rounded-lg text-[8px] font-bold uppercase tracking-wider bg-[#1bd96a]/15 text-[#1bd96a] border border-[#1bd96a]/25 hover:bg-[#1bd96a]/25 transition-all"
           >
             Сохранить
           </button>

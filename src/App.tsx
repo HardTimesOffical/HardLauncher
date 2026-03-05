@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import LaunchProgress from './components/LaunchProgress';
-import TitleBar from './components/TitleBar';
 import ServerList from './components/ServerList';
 import BackgroundCarousel from './components/BackgroundCarousel';
 import SettingsPage from './pages/settings';
 import GlobalChat from './components/GlobalChat';
 import Footer from './components/Footer';
+import AuthPage from './pages/auth.page';
+import ProfilePage from './pages/profile.page';
+import ContentPage from './pages/content.page';
 
 interface GameVersion {
   id: string;
@@ -17,16 +19,69 @@ interface ProgressData {
   percent: number;
   current: string;
   total: string;
-  isChecking?: boolean; // Добавили это поле
+  isChecking?: boolean;
 }
 
+interface ActiveAccount {
+  nickname: string;
+  provider: 'internal' | 'ely' | 'offline';
+  token?: string;
+}
+
+type AuthProvider = 'internal' | 'ely';
+type Tab = 'play' | 'profile' | 'settings' | 'auth' | 'chat' | 'content';
+
+// Иконки для sidebar
+const Icons = {
+  play: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  profile: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  ),
+  chat: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+    </svg>
+  ),
+  settings: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+  auth: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+    </svg>
+  ),
+  content: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+    </svg>
+  ),
+};
+
 function App() {
-  const [activeTab, setActiveTab] = useState<'play' | 'settings'>('play');
+  const [activeTab, setActiveTab] = useState<Tab>('play');
+  const [activeAccount, setActiveAccount] = useState<ActiveAccount>({
+    nickname: 'HardPlayer_01',
+    provider: 'offline'
+  });
   const [nickname, setNickname] = useState('HardPlayer_01');
   const [progress, setProgress] = useState<ProgressData | null>(null);
   const [statusText, setStatusText] = useState('Загрузка файлов...');
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [versions, setVersions] = useState<GameVersion[]>([]);
+  const [availableVersions, setAvailableVersions] = useState([]);
+  const [authProvider, setAuthProvider] = useState<AuthProvider>(() => {
+    return (localStorage.getItem('auth-provider') as AuthProvider) || 'internal';
+  });
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<string>(() => {
     return localStorage.getItem('selected-game-version') || '1.21.1';
   });
@@ -44,16 +99,25 @@ function App() {
     'https://cdna.artstation.com/p/assets/images/images/042/400/690/large/mariana-salimena-swamp-b-artstation.jpg?1634406924'
   ];
 
-  // --- ЛОГИКА УВЕДОМЛЕНИЙ ---
-  const handleMention = useCallback(() => {
-    if (!isChatOpen) setHasMention(true);
-  }, [isChatOpen]);
+  const [versionFilters, setVersionFilters] = useState({
+  showRelease: true,
+  showFabric: true,
+  showOld: false,
+});
 
+  const refreshVersions = async () => {
+    const versions = await window.ipcRenderer.invoke('get-versions');
+    setAvailableVersions(versions);
+  };
+
+  
+
+  // Загружаем при старте
   useEffect(() => {
-    if (isChatOpen) setHasMention(false);
-  }, [isChatOpen]);
+    refreshVersions();
+  }, []);
 
-  // --- ЛОГИКА ЗАПУСКА И ВЕРСИЙ ---
+
   const stopLaunching = useCallback(() => {
     setIsLaunching(false);
     setProgress(null);
@@ -72,36 +136,68 @@ function App() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchVersions();
-  }, [fetchVersions]);
+  useEffect(() => { fetchVersions(); }, [fetchVersions]);
 
   useEffect(() => {
-  const loadSavedData = async () => {
-    const config = await window.ipcRenderer.invoke('get-settings');
-    if (config.lastNickname) setNickname(config.lastNickname);
-    if (config.lastVersion) setSelectedVersion(config.lastVersion);
-  };
-  loadSavedData();
+  window.ipcRenderer.invoke('refresh-accounts').then((accounts) => {
+    // Если текущий аккаунт потерял токен — сбросить в офлайн
+    if (activeAccount.provider !== 'offline') {
+      const current = accounts.find(
+        (a: any) => a.nickname === activeAccount.nickname && a.provider === activeAccount.provider
+      );
+      if (current && !current.token) {
+        setActiveAccount({ nickname: current.nickname, provider: 'offline' });
+        setNickname(current.nickname);
+      }
+    }
+  });
 }, []);
 
-// 2. Авто-сохранение при изменении
 useEffect(() => {
-  const saveData = async () => {
-    const currentConfig = await window.ipcRenderer.invoke('get-settings');
-    await window.ipcRenderer.invoke('save-settings', {
-      ...currentConfig,
-      lastNickname: nickname,
-      lastVersion: selectedVersion
-    });
+  const handleRefresh = async () => {
+    console.log("Обновление списка версий...");
+    const data = await window.ipcRenderer.invoke('get-versions');
+    setVersions(data || []);
   };
-  
-  // Сохраняем с небольшой задержкой (debounce), чтобы не мучить диск при каждом символе
-  const timer = setTimeout(saveData, 500);
-  return () => clearTimeout(timer);
-}, [nickname, selectedVersion]);
 
-  // --- ПОДПИСКИ НА IPC (Вынесено в отдельный эффект) ---
+  // Подписываемся
+  window.ipcRenderer.on('filters-changed', handleRefresh);
+
+  // Очистка при размонтировании
+  return () => {
+    // Используем removeListener вместо removeAllListeners
+    // Проверяем наличие метода, чтобы не было TypeError
+    if (window.ipcRenderer.removeListener) {
+      window.ipcRenderer.removeListener('filters-changed', handleRefresh);
+    }
+  };
+}, []);
+
+  useEffect(() => {
+    const loadSavedData = async () => {
+      const config = await window.ipcRenderer.invoke('get-settings');
+      if (config.lastNickname) setNickname(config.lastNickname);
+      if (config.lastVersion) setSelectedVersion(config.lastVersion);
+      if (config.versionFilters) setVersionFilters(config.versionFilters); // ← СЮДА
+    };
+    loadSavedData();
+  }, []);
+
+  
+
+  useEffect(() => {
+    const saveData = async () => {
+      const currentConfig = await window.ipcRenderer.invoke('get-settings');
+      await window.ipcRenderer.invoke('save-settings', {
+        ...currentConfig,
+        lastNickname: nickname,
+        lastVersion: selectedVersion
+      });
+    };
+    const timer = setTimeout(saveData, 500);
+    return () => clearTimeout(timer);
+  }, [nickname, selectedVersion]);
+
   useEffect(() => {
     const handleProgress = (_: any, value: any) => {
       if (!value) setProgress(null);
@@ -112,7 +208,6 @@ useEffect(() => {
         isChecking: value.isChecking || false
       });
     };
-
     const handleStatus = (_: any, text: string) => setStatusText(text);
     const handleError = (_: any, error: any) => {
       stopLaunching();
@@ -139,16 +234,44 @@ useEffect(() => {
     };
   }, [stopLaunching]);
 
-  // --- ОБРАБОТЧИКИ КНОПОК ---
+  const handleLoginSuccess = (name: string, provider: AuthProvider, token?: string) => {
+    setActiveAccount({ nickname: name, provider, token });
+    setNickname(name);
+    setAuthProvider(provider);
+    if (token) setAuthToken(token);
+    localStorage.setItem('auth-provider', provider);
+    setActiveTab('play');
+  };
+
+  const handleSelectAccount = (name: string, hasToken: boolean, provider?: string) => {
+    setActiveAccount({
+      nickname: name,
+      provider: hasToken ? (provider as 'internal' | 'ely') : 'offline',
+      token: hasToken ? authToken || undefined : undefined
+    });
+    setNickname(name);
+    if (provider && hasToken) {
+      setAuthProvider(provider as AuthProvider);
+      localStorage.setItem('auth-provider', provider);
+    }
+  };
+
   const handleLaunch = () => {
     setIsLaunching(true);
     setStatusText(isDownloaded ? 'Starting game...' : 'Downloading files...');
-    window.ipcRenderer.send('launch-game', { nickname, version: selectedVersion });
+    window.ipcRenderer.send('launch-game', {
+      nickname,
+      version: selectedVersion,
+      authProvider,
+      token: authToken
+    });
   };
+
+  
 
   const openFolder = () => window.ipcRenderer.send('open-game-folder');
 
-  const handleResetVersion = async () => {
+  const handleResetVersion: () => Promise<void> = async () => {
     if (!selectedVersion) return;
     if (window.confirm(`Вы уверены, что хотите переустановить ${selectedVersion}?`)) {
       const result = await window.ipcRenderer.invoke('reset-version', selectedVersion);
@@ -159,102 +282,180 @@ useEffect(() => {
     }
   };
 
+  // Навигационные табы
+  const navTabs: { id: Tab; label: string; icon: React.ReactNode; showDot?: boolean }[] = [
+    { id: 'play',     label: 'Играть',    icon: Icons.play },
+    { id: 'content',  label: 'Контент',   icon: Icons.content }, // НОВАЯ КНОПКА
+    { id: 'profile',  label: 'Профиль',   icon: Icons.profile },
+    { id: 'chat',     label: 'Чат',       icon: Icons.chat, showDot: hasMention },
+    { id: 'settings', label: 'Настройки', icon: Icons.settings },
+    { id: 'auth',     label: 'Аккаунты',  icon: Icons.auth },
+  ];
+
   return (
-    <div className="h-screen w-full bg-[#0a0a0a] text-slate-200 flex flex-col overflow-hidden font-sans border border-white/5 shadow-2xl relative">
+    <div className="h-screen w-full bg-[#0f0f0f] text-white flex flex-col overflow-hidden border border-white/5 shadow-2xl">
       
-      {/* 1. TITLEBAR */}
-      <TitleBar activeTab={activeTab} onTabChange={setActiveTab} />
-
-      <div className="flex-1 relative flex overflow-hidden">
-        
-        {/* 2. ОБЩИЙ ФОН */}
-        <BackgroundCarousel images={bgImages} interval={10000} />
-
-        {/* --- НОВАЯ СЕКЦИЯ ЧАТА --- */}
-        {/* Кнопка открытия чата (слева посередине) */}
-     <button 
-          onClick={() => setIsChatOpen(!isChatOpen)}
-          className={`absolute top-1/2 -translate-y-1/2 z-[60] 
-            bg-[#0b0f1a]/60 backdrop-blur-md border border-white/10 p-2.5
-            hover:bg-[#00ff95]/10 hover:border-[#00ff95]/30 
-            transition-all duration-500 ease-in-out group
-            ${isChatOpen ? 'left-[300px]' : 'left-0'}`}
-          style={{ borderRadius: '0 12px 12px 0' }}
-        >
-          {/* КРАСНАЯ ТОЧКА */}
-          {!isChatOpen && hasMention && (
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-            </span>
-          )}
-          <div className="relative w-5 h-5 flex items-center justify-center">
-            <svg className={`absolute w-5 h-5 transition-all duration-500 ${isChatOpen ? 'opacity-0 scale-0' : 'opacity-100 scale-100 text-white/60 group-hover:text-[#00ff95]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+      {/* TITLEBAR — drag region */}
+      <div 
+        className="h-9 bg-[#0a0a0a] flex items-center justify-between px-4 border-b border-white/5 flex-shrink-0"
+        style={{ WebkitAppRegion: 'drag' } as any}
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#00ff95] shadow-[0_0_6px_#00ff95]" />
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Hard Times</span>
+        </div>
+        <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <button
+            onClick={() => window.ipcRenderer.send('window-control', 'minimize')}
+            className="w-7 h-7 flex items-center justify-center text-white/30 hover:text-white hover:bg-white/5 rounded transition-all"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeWidth={2} d="M20 12H4" />
             </svg>
-            <svg className={`absolute w-5 h-5 transition-all duration-500 ${isChatOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-0 text-[#00ff95]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+          </button>
+          <button
+            onClick={() => window.ipcRenderer.send('window-control', 'close')}
+            className="w-7 h-7 flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </div>
-        </button>
-
-        {/* Выезжающая панель чата */}
-        <aside 
-          className={`absolute left-0 top-0 bottom-0 z-[55] w-[300px] 
-            bg-[#0b0f1a]/40 backdrop-blur-md border-r border-white/10 
-            transition-transform duration-500 ease-in-out shadow-2xl ${
-            isChatOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <GlobalChat 
-            currentUser={nickname} 
-            isChatOpen={isChatOpen} 
-            onMention={handleMention} 
-          />
-        </aside>
-        {/* ------------------------- */}
-
-        {/* 3. КОНТЕНТ В ЗАВИСИМОСТИ ОТ ВКЛАДКИ */}
-        <main className={`flex-1 flex transition-all duration-500 ${isChatOpen ? 'ml-[300px]' : 'ml-0'}`}>
-          {activeTab === 'play' ? (
-            <>
-              {/* ЛЕВАЯ ЧАСТЬ: Пустое пространство (теперь оно уменьшается при чате) */}
-              <div className="flex-1 relative z-20 pointer-events-none" />
-
-              {/* ПРАВАЯ ЧАСТЬ: Список серверов */}
-              <div className="w-[550px] flex flex-col items-center justify-start p-4 z-30 animate-in fade-in slide-in-from-right-10 duration-500">
-                <div className="w-full backdrop-blur-md border border-[#333333] shadow-2xl overflow-hidden h-fit flex flex-col">
-                  <ServerList />
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 z-30 flex justify-center items-center p-8">
-               <SettingsPage />
-            </div>
-          )}
-        </main>
+          </button>
+        </div>
       </div>
 
-      {/* 4. ПРОГРЕСС ЗАГРУЗКИ */}
-      <LaunchProgress progress={progress} statusText={statusText} />
+      {/* ОСНОВНОЙ LAYOUT */}
+      <div className="flex-1 flex overflow-hidden">
 
-      {/* 5. FOOTER */}
-     <Footer 
-  nickname={nickname}
-  setNickname={setNickname}
-  progress={progress}
-  versions={versions}
-  selectedVersion={selectedVersion}
-  setSelectedVersion={setSelectedVersion}
-  isDownloaded={!!isDownloaded}
-  isLaunching={isLaunching}
-  handleLaunch={handleLaunch}
-  handleResetVersion={handleResetVersion}
-  openFolder={openFolder}
-/>
+        {/* SIDEBAR */}
+        <aside className="w-[60px] bg-[#0a0a0a] border-r border-white/5 flex flex-col items-center py-4 gap-1 flex-shrink-0 z-50">
+          {navTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                if (tab.id === 'chat') setHasMention(false);
+              }}
+              title={tab.label}
+              className={`relative w-10 h-10 flex items-center justify-center rounded-lg transition-all group
+                ${activeTab === tab.id
+                  ? 'bg-[#00ff95]/15 text-[#00ff95]'
+                  : 'text-white/25 hover:text-white/70 hover:bg-white/5'
+                }`}
+            >
+              {tab.showDot && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 flex">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                </span>
+              )}
+              {tab.icon}
+              {/* Tooltip */}
+              <span className="absolute left-14 bg-[#1a1a1a] border border-white/10 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[999]">
+                {tab.label}
+              </span>
+            </button>
+          ))}
+
+          {/* Разделитель */}
+          <div className="flex-1" />
+
+          {/* Аватар текущего игрока */}
+          <button
+            onClick={() => setActiveTab('profile')}
+            className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 hover:border-[#00ff95]/50 transition-all mb-1"
+            title={nickname}
+          >
+            <img
+              src={`https://minotar.net/helm/${nickname || 'char'}/64.png`}
+              className="w-full h-full object-cover"
+              alt=""
+            />
+          </button>
+        </aside>
+
+        {/* КОНТЕНТ */}
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+
+          {/* Фон только для play */}
+          {activeTab === 'play' && (
+            <div className="absolute inset-0 z-0">
+              <BackgroundCarousel images={bgImages} interval={10000} />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a]/80 via-transparent to-transparent" />
+            </div>
+          )}
+
+          {/* Контент вкладок */}
+          <div className="flex-1 relative z-10 overflow-hidden">
+
+            {activeTab === 'play' && (
+              <div className="h-full flex">
+                <div className="flex-1" />
+                <div className="w-[520px] h-full flex flex-col items-center justify-start p-5 animate-in fade-in slide-in-from-right-5 duration-300">
+                  <div className="w-full backdrop-blur-md bg-black/20 border border-white/10 shadow-2xl overflow-hidden">
+                    <ServerList />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'profile' && (
+              <div className="h-full flex justify-center items-center p-8 animate-in zoom-in-95 duration-300 bg-[#0f0f0f]">
+                <ProfilePage account={activeAccount} />
+              </div>
+            )}
+
+            {activeTab === 'chat' && (
+              <div className="h-full flex flex-col bg-[#0f0f0f] animate-in fade-in duration-200">
+                <div className="px-6 py-4 border-b border-white/5">
+                  <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-white/50">Глобальный чат</h2>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <GlobalChat currentUser={nickname} isChatOpen={true} onMention={() => {}} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'settings' && (
+              <div className="h-full flex justify-center items-center p-8 animate-in zoom-in-95 duration-300 bg-[#0f0f0f]">
+                <SettingsPage />
+              </div>
+            )}
+
+            {activeTab === 'auth' && (
+              <div className="h-full flex justify-center items-center p-8 animate-in zoom-in-95 duration-300 bg-[#0f0f0f]">
+                <AuthPage onLoginSuccess={handleLoginSuccess} />
+              </div>
+            )}
+
+            {activeTab === 'content' && (
+              <div className="h-full bg-[#0f0f0f]">
+                <ContentPage />
+              </div>
+            )}
+          </div>
+
+          {/* FOOTER */}
+          {/* FOOTER */}
+          <LaunchProgress progress={progress} statusText={statusText} />
+            <Footer
+              nickname={nickname}
+              setNickname={setNickname}
+              onSelectAccount={handleSelectAccount}
+              onTabChange={(tab) => setActiveTab(tab as Tab)}
+              progress={progress}
+              versions={versions} // ПЕРЕДАЕМ НАПРЯМУЮ versions
+              selectedVersion={selectedVersion}
+              setSelectedVersion={setSelectedVersion}
+              isDownloaded={isDownloaded ?? false}
+              isLaunching={isLaunching ?? false}
+              handleLaunch={handleLaunch}
+              handleResetVersion={handleResetVersion}
+              openFolder={openFolder}
+            />
+        </div>
+      </div>
     </div>
   );
 }
 
-export default App
+export default App;

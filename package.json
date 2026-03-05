@@ -1,7 +1,7 @@
 {
   "name": "hardlauncher",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Minecraft Launcher for Hard Monitoring",
   "type": "module",
   "scripts": {
@@ -48,6 +48,7 @@
     "graceful-fs": "^4.2.11",
     "jdk-utils": "^0.6.0",
     "minecraft-launcher-core": "^3.18.2",
+    "nbt-ts": "^1.3.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "socket.io-client": "^4.8.3"

@@ -1,9 +1,19 @@
 @import "tailwindcss";
 
+/* =====================
+   DRAG REGIONS
+   ===================== */
 .drag-region {
   -webkit-app-region: drag;
 }
 
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* =====================
+   FONTS
+   ===================== */
 @font-face {
   font-family: 'MinecraftTen';
   src: url('./assets/fonts/MinecraftTen.ttf') format('truetype');
@@ -18,23 +28,129 @@
   font-style: normal;
 }
 
-/* Если хочешь использовать его как основной шрифт для всего приложения */
+/* =====================
+   ROOT & BASE
+   ===================== */
 :root {
-  font-family: 'MinecraftTen', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-brand: #1bd96a;
+  --color-brand-dim: rgba(27, 217, 106, 0.15);
+  --color-bg: #0f0f0f;
+  --color-bg-elevated: #141414;
+  --color-bg-overlay: #1a1a1a;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-hover: rgba(255, 255, 255, 0.12);
+  --color-text: rgba(255, 255, 255, 0.85);
+  --color-text-dim: rgba(255, 255, 255, 0.35);
+  --color-text-muted: rgba(255, 255, 255, 0.15);
 }
 
-/* Элементы внутри, на которые МОЖНО нажимать (кнопки, ссылки), 
-   должны иметь это свойство, иначе клики по ним не пройдут */
-.no-drag {
-  -webkit-app-region: no-drag;
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =====================
+   SCROLLBAR
+   ===================== */
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(27, 217, 106, 0.3);
+}
+
+/* =====================
+   SELECTION
+   ===================== */
+::selection {
+  background: rgba(27, 217, 106, 0.2);
+  color: #fff;
+}
+
+/* =====================
+   ANIMATIONS
+   ===================== */
 @keyframes progress-glow {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
+  0%   { opacity: 0.4; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 .animate-pulse-fast {
   animation: progress-glow 1.5s infinite ease-in-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.15s ease-out forwards;
+}
+
+/* =====================
+   UTILITIES
+   ===================== */
+
+/* Пиксельный рендеринг для скинов */
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Стеклянная карточка */
+.glass {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Светящийся бренд-цвет */
+.glow-brand {
+  box-shadow: 0 0 12px rgba(27, 217, 106, 0.3);
+}
+
+.text-glow-brand {
+  text-shadow: 0 0 8px rgba(27, 217, 106, 0.6);
+}
+
+/* Minecraft шрифт как утилита */
+.font-mc {
+  font-family: 'MinecraftSeven', monospace;
+}
+
+.font-mc-title {
+  font-family: 'MinecraftTen', sans-serif;
 }

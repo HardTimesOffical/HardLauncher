@@ -1,160 +1,212 @@
-"use client";
-
 import React, { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import SkinHead from "./SkinHead";
 
 const SERVER_URL = "https://hardtimes-server-1.onrender.com";
-
-// Список быстрых эмодзи
 const EMOJIS = ["😊", "😂", "🔥", "👍", "💀", "❤️", "😮", "⚔️", "💎", "⛏️"];
 
-export default function GlobalChat({ 
-  currentUser, 
-  onMention, 
-  isChatOpen 
-}: { 
-  currentUser: string, 
-  onMention: () => void, 
-  isChatOpen: boolean 
+interface UserProfile {
+  username: string;
+  avatar?: string;
+  provider?: string;
+}
+
+export default function GlobalChat({
+  currentUser,
+  currentProvider,
+  onMention,
+  isChatOpen
+}: {
+  currentUser: string;
+  currentProvider?: string;
+  onMention: () => void;
+  isChatOpen: boolean;
 }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [showEmoji, setShowEmoji] = useState(false);
-  
+  const [userCache, setUserCache] = useState<Record<string, UserProfile>>({});
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
-  
-  // Создаем Ref для состояния открытия чата, чтобы сокет видел его без перезапуска эффекта
   const isChatOpenRef = useRef(isChatOpen);
 
-  useEffect(() => {
-    isChatOpenRef.current = isChatOpen;
-  }, [isChatOpen]);
+  useEffect(() => { isChatOpenRef.current = isChatOpen; }, [isChatOpen]);
 
   const canChat = currentUser && currentUser !== "Player" && currentUser.trim() !== "";
 
-  // Таймер кулдауна
+  // Получить профиль пользователя (кеш)
+  const fetchUserProfile = async (nickname: string): Promise<UserProfile> => {
+    if (userCache[nickname]) return userCache[nickname];
+    try {
+      const res = await fetch(`${SERVER_URL}/users/${nickname}`);
+      if (res.ok) {
+        const data = await res.json();
+        const profile: UserProfile = {
+          username: data.username,
+          avatar: data.avatar || null,
+          provider: 'internal'
+        };
+        setUserCache(prev => ({ ...prev, [nickname]: profile }));
+        return profile;
+      }
+    } catch {}
+    // Не найден на сервере — офлайн игрок
+    const fallback: UserProfile = { username: nickname, avatar: undefined, provider: undefined };
+    setUserCache(prev => ({ ...prev, [nickname]: fallback }));
+    return fallback;
+  };
+
   useEffect(() => {
     if (cooldown > 0) {
-      const timer = setInterval(() => setCooldown((prev) => prev - 1), 1000);
+      const timer = setInterval(() => setCooldown(p => p - 1), 1000);
       return () => clearInterval(timer);
     }
   }, [cooldown]);
 
-  // Основной эффект сокета и истории
   useEffect(() => {
     if (!socketRef.current) {
       socketRef.current = io(SERVER_URL, { transports: ["websocket"] });
     }
 
-    // Загрузка истории один раз
     fetch(`${SERVER_URL}/chat?limit=40`)
       .then(res => res.json())
-      .then(data => {
+      .then(async (data) => {
         setMessages(data);
+        // Предзагружаем профили
+        const nicks = [...new Set(data.map((m: any) => m.authorName))] as string[];
+        await Promise.all(nicks.map(fetchUserProfile));
         setTimeout(() => {
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }, 100);
       })
       .catch(console.error);
 
-    // Слушатель сообщений
-    const handleMessage = (msg: any) => {
-      setMessages((prev) => [...prev, msg]);
-
-      // Используем Ref, чтобы проверка была актуальной без перезагрузки useEffect
-      if (!isChatOpenRef.current && msg.message.includes(`@${currentUser}`)) {
-        onMention(); 
-      }
-
+    const handleMessage = async (msg: any) => {
+      await fetchUserProfile(msg.authorName);
+      setMessages(prev => [...prev, msg]);
+      if (!isChatOpenRef.current && msg.message.includes(`@${currentUser}`)) onMention();
       setTimeout(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }, 50);
     };
 
     socketRef.current.on("receive_message", handleMessage);
+    return () => { socketRef.current?.off("receive_message", handleMessage); };
+  }, [currentUser, onMention]);
 
-    return () => {
-      socketRef.current?.off("receive_message", handleMessage);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser]); // Зависимость только от юзера, чтобы не переподключаться при каждом движении чата
-
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !canChat || cooldown > 0) return;
+
+    let userToken = null;
+    const ipc = (window as any).ipcRenderer;
+    if (ipc) {
+      try {
+        const accounts = await ipc.invoke('get-accounts');
+        const current = accounts.find((a: any) => a.nickname === currentUser && a.provider === currentProvider);
+        userToken = current?.token;
+      } catch {}
+    }
 
     socketRef.current?.emit("send_message", {
       message: newMessage,
       authorName: currentUser,
-      userId: null, 
+      token: userToken,
+      provider: currentProvider || null, // ДОБАВИТЬ
+      userId: null,
     });
 
     setNewMessage("");
     setCooldown(3);
-    setShowEmoji(false);
   };
 
-  const addEmoji = (emoji: string) => {
-    setNewMessage(prev => prev + emoji);
+  const openProfile = (nickname: string) => {
+    const profile = userCache[nickname];
+    if (profile?.provider === 'internal') {
+      const ipc = (window as any).ipcRenderer;
+      const url = `https://hardmonitoring.ru/profile/${nickname}`;
+      ipc ? ipc.send('open-external-link', url) : window.open(url, '_blank');
+    }
   };
 
-  const renderMessage = (text: string) => {
-    return text.split(/(@\w+)/g).map((part, i) => 
-      part.startsWith('@') 
-        ? <span key={i} className="text-emerald-400 font-semibold">{part}</span> 
+  const MessageAvatar = ({ msg }: { msg: any }) => {
+  // Hard Times с аватаркой
+  if (msg.provider === 'internal' && msg.avatar) {
+    return (
+      <img
+        src={msg.avatar}
+        className="w-8 h-8 rounded-lg bg-black/40 border border-white/[0.06] flex-shrink-0 object-cover"
+        alt=""
+      />
+    );
+  }
+  // Ely.by или без аватарки — голова скина
+  return (
+    <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/[0.06] flex-shrink-0 bg-black/40">
+      <SkinHead
+        nickname={msg.authorName}
+        provider={msg.provider || undefined}
+        size={32}
+      />
+    </div>
+  );
+};
+
+  const renderMessage = (text: string) =>
+    text.split(/(@\w+)/g).map((part, i) =>
+      part.startsWith('@')
+        ? <span key={i} className="text-[#1bd96a] font-semibold">{part}</span>
         : part
     );
-  };
 
   return (
-    <div className="flex flex-col h-full w-full bg-transparent font-sans text-white border-r border-white/5">
+    <div className="flex flex-col h-full w-full bg-[#0f0f0f] text-white">
+
       {/* Шапка */}
-      <div className="p-3 border-b border-white/5 bg-black/40 flex justify-between items-center">
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">Launcher Chat</span>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] text-emerald-500/60 font-bold uppercase">Online</span>
+      <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#1bd96a] shadow-[0_0_6px_#1bd96a]" />
+          <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/40">Глобальный чат</span>
         </div>
+        <span className="text-[9px] text-white/20 uppercase tracking-wider">HardTimes</span>
       </div>
 
       {/* Сообщения */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        <style>{`.custom-scrollbar::-webkit-scrollbar { width: 3px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); }`}</style>
-        
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 custom-scrollbar">
         {messages.map((msg, i) => {
           const isMe = msg.authorName === currentUser;
-          const isRegistered = msg.user || msg.userId;
-          const avatarUrl = msg.avatar || `https://minotar.net/helm/${msg.authorName}/32.png`;
+          const profile = userCache[msg.authorName];
+          const isRegistered = !!(msg.user || msg.userId || profile?.provider === 'internal');
 
           return (
-            <div key={i} className={`flex items-start gap-2.5 ${isMe ? 'flex-row-reverse text-right' : ''}`}>
-              <img 
-                src={avatarUrl} 
-                className="w-7 h-7 rounded-sm bg-black/40 border border-white/10 flex-shrink-0"
-                alt=""
-              />
-              <div className={`flex flex-col max-w-[80%] ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`flex items-center gap-2 mb-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+            <div key={i} className={`flex items-start gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+              
+              <MessageAvatar msg={msg} />
+
+              <div className={`flex flex-col max-w-[78%] ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className={`flex items-center gap-1.5 mb-0.5 ${isMe ? 'flex-row-reverse' : ''}`}>
                   {isRegistered ? (
-                    <a 
-                      href={`https://hardmonitoring.ru/profile/${msg.authorName}`}
-                      target="_blank"
-                      className="text-[11px] font-bold text-emerald-500/80 hover:text-emerald-400 transition-colors"
+                    <button
+                      onClick={() => openProfile(msg.authorName)}
+                      className="text-[10px] font-bold text-[#1bd96a]/80 hover:text-[#1bd96a] transition-colors"
                     >
                       {msg.authorName}
-                    </a>
+                    </button>
                   ) : (
-                    <span className="text-[11px] font-bold text-slate-400/80 cursor-help" title="Не авторизован">
-                      {msg.authorName}
-                    </span>
+                    <span className="text-[10px] font-bold text-white/30">{msg.authorName}</span>
                   )}
-                  <span className="text-[8px] text-white/10">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-[8px] text-white/10">
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
-                
-                <div className={`text-[12px] p-2 rounded-lg leading-snug break-words ${
-                  isMe ? 'bg-emerald-500/10 text-emerald-50 rounded-tr-none' : 'bg-white/5 text-white/80 rounded-tl-none'
-                }`}>
+
+                <div className={`text-[11px] px-3 py-1.5 rounded-xl leading-relaxed break-words
+                  ${isMe
+                    ? 'bg-[#1bd96a]/10 text-white/80 rounded-tr-sm'
+                    : 'bg-white/[0.04] text-white/70 rounded-tl-sm'
+                  }`}>
                   {renderMessage(msg.message)}
                 </div>
               </div>
@@ -163,50 +215,52 @@ export default function GlobalChat({
         })}
       </div>
 
-      {/* Ввод сообщения */}
-      <div className="p-3 bg-black/40 border-t border-white/5 relative">
+      {/* Ввод */}
+      <div className="p-3 border-t border-white/[0.06] flex-shrink-0 relative">
         {showEmoji && (
-          <div className="absolute bottom-full left-0 w-full p-2 bg-[#161b22] border-t border-white/10 flex flex-wrap gap-2 animate-in slide-in-from-bottom-2 z-10">
+          <div className="absolute bottom-full left-0 right-0 p-2 bg-[#141414] border-t border-white/[0.06] flex flex-wrap gap-1.5 z-10">
             {EMOJIS.map(e => (
-              <button key={e} onClick={() => addEmoji(e)} className="hover:scale-125 transition-transform text-sm">{e}</button>
+              <button key={e} onClick={() => setNewMessage(p => p + e)} className="hover:scale-125 transition-transform text-sm">
+                {e}
+              </button>
             ))}
           </div>
         )}
 
         {canChat ? (
-          <form onSubmit={handleSend} className="flex flex-col gap-2">
-            <div className="flex items-center bg-white/[0.03] border border-white/5 rounded px-2">
-              <button 
-                type="button"
-                onClick={() => setShowEmoji(!showEmoji)}
-                className={`p-1.5 transition-colors ${showEmoji ? 'text-emerald-400' : 'text-white/20 hover:text-white/40'}`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              
-              <input 
-                id="chat-input"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder={cooldown > 0 ? `Пауза ${cooldown}с...` : "Сообщение..."}
-                className="flex-1 bg-transparent px-2 py-2 text-[12px] outline-none placeholder:text-white/10"
-                autoComplete="off"
-              />
-              
-              <button 
-                type="submit" 
-                disabled={cooldown > 0 || !newMessage.trim()}
-                className="p-1.5 text-emerald-500 hover:scale-110 disabled:opacity-0 transition-all"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>
-              </button>
-            </div>
+          <form onSubmit={handleSend} className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowEmoji(!showEmoji)}
+              className={`flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg transition-colors
+                ${showEmoji ? 'text-[#1bd96a] bg-[#1bd96a]/10' : 'text-white/20 hover:text-white/40'}`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+
+            <input
+              value={newMessage}
+              onChange={e => setNewMessage(e.target.value)}
+              placeholder={cooldown > 0 ? `Подождите ${cooldown}с...` : "Написать сообщение..."}
+              className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] text-white outline-none focus:border-white/10 placeholder:text-white/15 transition-colors"
+              autoComplete="off"
+            />
+
+            <button
+              type="submit"
+              disabled={cooldown > 0 || !newMessage.trim()}
+              className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-[#1bd96a]/10 text-[#1bd96a] hover:bg-[#1bd96a]/20 disabled:opacity-20 transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+              </svg>
+            </button>
           </form>
         ) : (
-          <div className="text-center py-1 text-[9px] text-red-500/40 font-bold uppercase tracking-widest">
-            Установите ник
+          <div className="text-center py-1 text-[9px] text-white/20 uppercase tracking-widest">
+            Войдите чтобы писать в чат
           </div>
         )}
       </div>
