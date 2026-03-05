@@ -1,5 +1,4 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
-import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
@@ -290,7 +289,7 @@ async function launchCustom(
 // ======================================================
 
 // Добавь authProvider в деструктуризацию аргументов
-ipcMain.on('launch-game', async (event, { version, nickname, authProvider }) => {
+ipcMain.on('launch-game', async (event, { version, nickname }) => {
   const webContents = event.sender;
   const config = ConfigManager.load();
   
@@ -477,7 +476,7 @@ ipcMain.handle('get-default-settings', async () => {
   });
 } // <---
 
-ipcMain.handle('ely-auth', async (event, { email, password }) => {
+ipcMain.handle('ely-auth', async ( email, password ) => {
   try {
     // Используем глобальный fetch (доступен в Node.js 18+)
     const response = await fetch("https://authserver.ely.by/auth/authenticate", {
@@ -560,19 +559,23 @@ ipcMain.handle('login-and-save', async (_, accountData) => {
 }
 });
 
-// 3. Удаление аккаунта (опционально)
-ipcMain.handle('remove-account', async (event, nickname: string) => {
+ipcMain.handle('remove-account', async (_event, nickname: string) => {
   const config = ConfigManager.load();
   const manager = new AccountManager(config.gamePath);
   const accounts = manager.getAll().filter(a => a.nickname !== nickname);
-  fs.writeFileSync(path.join(config.gamePath, 'accounts.json'), JSON.stringify(accounts, null, 2));
+  
+  fs.writeFileSync(
+    path.join(config.gamePath, 'accounts.json'), 
+    JSON.stringify(accounts, null, 2)
+  );
+  
   return accounts;
 });
 
 // Настройка поведения авто-апдейтера
 autoUpdater.autoDownload = false; // Не качать без спроса
 autoUpdater.autoInstallOnAppQuit = true;
-
+event
 // 1. Когда найдено обновление
 autoUpdater.on('update-available', (info) => {
   dialog.showMessageBox({

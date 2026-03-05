@@ -23,7 +23,6 @@ interface FooterProps {
 
 const Footer: React.FC<FooterProps> = ({
   nickname,
-  setNickname,
   onTabChange,
   onSelectAccount,
   progress,

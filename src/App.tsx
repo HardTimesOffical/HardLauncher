@@ -77,7 +77,6 @@ function App() {
   const [progress, setProgress] = useState<ProgressData | null>(null);
   const [statusText, setStatusText] = useState('Загрузка файлов...');
   const [versions, setVersions] = useState<GameVersion[]>([]);
-  const [availableVersions, setAvailableVersions] = useState([]);
   const [authProvider, setAuthProvider] = useState<AuthProvider>(() => {
     return (localStorage.getItem('auth-provider') as AuthProvider) || 'internal';
   });
@@ -99,20 +98,21 @@ function App() {
     'https://cdna.artstation.com/p/assets/images/images/042/400/690/large/mariana-salimena-swamp-b-artstation.jpg?1634406924'
   ];
 
-  const [versionFilters, setVersionFilters] = useState({
-  showRelease: true,
-  showFabric: true,
-  showOld: false,
-});
+const refreshVersions = useCallback(async () => {
+    try {
+      const data = await window.ipcRenderer.invoke('get-versions');
+      setVersions(data || []);
+      
+      // Авто-выбор версии, если ничего не выбрано
+      if (data && data.length > 0 && !selectedVersion) {
+        setSelectedVersion(data[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to fetch versions:", err);
+    }
+  }, [selectedVersion]);  
 
-  const refreshVersions = async () => {
-    const versions = await window.ipcRenderer.invoke('get-versions');
-    setAvailableVersions(versions);
-  };
 
-  
-
-  // Загружаем при старте
   useEffect(() => {
     refreshVersions();
   }, []);
@@ -150,39 +150,36 @@ function App() {
         setNickname(current.nickname);
       }
     }
-  });
-}, []);
+    });
+  }, []);
 
-useEffect(() => {
-  const handleRefresh = async () => {
-    console.log("Обновление списка версий...");
-    const data = await window.ipcRenderer.invoke('get-versions');
-    setVersions(data || []);
-  };
+  useEffect(() => {
+    const handleRefresh = async () => {
+      console.log("Обновление списка версий...");
+      const data = await window.ipcRenderer.invoke('get-versions');
+      setVersions(data || []);
+    };
 
   // Подписываемся
   window.ipcRenderer.on('filters-changed', handleRefresh);
 
   // Очистка при размонтировании
   return () => {
-    // Используем removeListener вместо removeAllListeners
-    // Проверяем наличие метода, чтобы не было TypeError
-    if (window.ipcRenderer.removeListener) {
-      window.ipcRenderer.removeListener('filters-changed', handleRefresh);
-    }
-  };
-}, []);
-
-  useEffect(() => {
-    const loadSavedData = async () => {
-      const config = await window.ipcRenderer.invoke('get-settings');
-      if (config.lastNickname) setNickname(config.lastNickname);
-      if (config.lastVersion) setSelectedVersion(config.lastVersion);
-      if (config.versionFilters) setVersionFilters(config.versionFilters); // ← СЮДА
+      if (window.ipcRenderer.removeListener) {
+        window.ipcRenderer.removeListener('filters-changed', handleRefresh);
+      }
     };
-    loadSavedData();
   }, []);
 
+ useEffect(() => {
+  const loadSavedData = async () => {
+    const config = await window.ipcRenderer.invoke('get-settings');
+    if (config.lastNickname) setNickname(config.lastNickname);
+    if (config.lastVersion) setSelectedVersion(config.lastVersion);
+    refreshVersions(); 
+  };
+  loadSavedData();
+}, [refreshVersions])
   
 
   useEffect(() => {

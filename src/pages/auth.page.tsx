@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 interface AuthPageProps {
   onLoginSuccess: (nickname: string, provider: 'internal' | 'ely', token?: string) => void;
