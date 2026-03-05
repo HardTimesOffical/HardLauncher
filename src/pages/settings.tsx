@@ -86,7 +86,7 @@ function Settings() {
 
   const filterOptions: { key: keyof VersionFilters; label: string; desc: string; labelClass: string }[] = [
     { key: 'showRelease', label: 'Релизы', desc: 'Vanilla (1.x.x)', labelClass: 'text-white/60' },
-    { key: 'showFabric', label: 'Fabric', desc: 'Мод-загрузчик', labelClass: 'text-yellow-400/80' },
+    { key: 'showFabric', label: 'Моды', desc: 'Fabric / Forge версии', labelClass: 'text-yellow-400/80' },
     { key: 'showOld', label: 'Старые', desc: 'Ниже 1.13', labelClass: 'text-white/35' },
   ];
 

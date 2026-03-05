@@ -9,6 +9,16 @@ interface SkinHeadProps {
 
 const SkinHead: React.FC<SkinHeadProps> = ({ nickname, provider, size = 32, className = '' }) => {
   const isEly = provider === 'ely';
+  const isEmpty = !nickname || nickname.trim() === '';
+
+  if (isEmpty) {
+    return (
+      <div
+        className={`flex-shrink-0 bg-white/[0.05] rounded ${className}`}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
 
   if (isEly) {
     return (
@@ -28,7 +38,7 @@ const SkinHead: React.FC<SkinHeadProps> = ({ nickname, provider, size = 32, clas
 
   return (
     <img
-      src={`https://minotar.net/helm/${nickname || 'char'}/${size * 2}.png`}
+      src={`https://minotar.net/helm/${nickname}/${size * 2}.png`}
       className={`flex-shrink-0 pixelated ${className}`}
       style={{ width: size, height: size }}
       alt={nickname}

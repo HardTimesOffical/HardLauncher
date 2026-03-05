@@ -14,6 +14,7 @@ import { ConfigManager } from './modules/config.manager'
 import { syncServers } from './modules/server.manager';
 import { ensureInjector } from './modules/server.manager'
 import { AccountManager } from './modules/account.manager';
+import { installForge } from './modules/installers/forge.installer'
 
 gracefulFs.gracefulify(fs)
 
@@ -284,6 +285,64 @@ async function launchCustom(
   await launcher.launch(opts);
 }
 
+async function launchForge(
+  versionObj: any,
+  nickname: string,
+  webContents: Electron.WebContents,
+  authServerUrl: string,
+  auth?: IUser
+) {
+  const { gameVersion, loaderVersion } = versionObj;
+  const config = ConfigManager.load();
+
+  const javaPath = await ensureJava(
+    getJavaVersionNeeded(gameVersion).toString(),
+    webContents,
+    config.gamePath
+  );
+
+  // Устанавливаем Forge если нужно
+  const forgeVersionId = await installForge(
+    gameVersion,
+    loaderVersion,
+    config.gamePath,
+    javaPath,
+    webContents
+  );
+
+  // JVM аргументы
+  const extraArgs: string[] = [
+    `-Dminecraft.launcher.brand=HardLauncher`,
+    `-Dminecraft.launcher.version=1.0.0`,
+  ];
+
+  if (authServerUrl) {
+    const injectorPath = await ensureInjector(config.gamePath, webContents);
+    extraArgs.unshift(`-javaagent:${injectorPath}=${authServerUrl}`);
+  }
+
+  const opts: any = {
+    authorization: auth || authMethod(nickname),
+    root: config.gamePath,
+    javaPath,
+    version: {
+      number: gameVersion,
+      custom: forgeVersionId,
+      type: 'release',
+    },
+    memory: { min: '1G', max: `${config.ram}G` },
+    overrides: {
+      detached: true,
+      extraArgs,
+    },
+  };
+
+  await syncServers(config.gamePath);
+
+  const launcher = createGameLauncher(webContents, false);
+  await launcher.launch(opts);
+}
+
 // ======================================================
 // 4. ГЛАВНЫЙ IPC ВХОД
 // ======================================================
@@ -343,12 +402,14 @@ ipcMain.on('launch-game', async (event, { version, nickname }) => {
     const mcVersion = versionObj.gameVersion || versionObj.id;
 
     // 4. ЗАПУСК
-    if (versionObj.type === 'custom') {
-      // Передаем сформированный userAuth и URL инжектора
+    if (versionObj.type === 'forge') {
+      await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth);
+    } else if (versionObj.type === 'fabric') {
       await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth);
-    } 
-    else {
-      // Для ваниллы передаем также IP сервера для быстрого захода
+    } else if (versionObj.type === 'custom') {
+      // модпаки — в будущем
+      await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth);
+    } else {
       await launchVanilla(mcVersion, nickname, webContents, authServerUrl, config.lastServerIp, userAuth);
     }
 
@@ -385,19 +446,18 @@ ipcMain.handle('get-versions', async () => {
 
   return (versionsData.versions as any[])
     .filter(v => {
-      const versionId = v.id.toLowerCase();
       const gameVersion = v.gameVersion || v.id;
-
-      // 1. Проверка на старые версии (ниже 1.13)
-      const majorVersion = parseInt(gameVersion.split('.')[1]); 
+      const majorVersion = parseInt(gameVersion.split('.')[1]);
       const isOld = gameVersion.startsWith('1.') && majorVersion < 13;
+
       if (isOld && !filters.showOld) return false;
 
-      // 2. Проверка на Fabric (по типу или ID)
-      const isFabric = v.type === 'custom' || versionId.includes('fabric');
-      if (isFabric && !filters.showFabric) return false;
+      const isFabric = v.type === 'fabric';
+      const isForge = v.type === 'forge';
 
-      // 3. Проверка на чистые релизы (если это не старая версия)
+      // Fabric и Forge под одним переключателем "моды"
+      if ((isFabric || isForge) && !filters.showFabric) return false;
+
       if (v.type === 'release' && !isOld && !filters.showRelease) return false;
 
       return true;
@@ -476,7 +536,7 @@ ipcMain.handle('get-default-settings', async () => {
   });
 } // <---
 
-ipcMain.handle('ely-auth', async ( email, password ) => {
+ipcMain.handle('ely-auth', async (_, { email, password }) => {
   try {
     // Используем глобальный fetch (доступен в Node.js 18+)
     const response = await fetch("https://authserver.ely.by/auth/authenticate", {
@@ -506,8 +566,8 @@ ipcMain.handle('ely-auth', async ( email, password ) => {
 ipcMain.handle('hardtimes-auth', async (_, { email, password, username, isRegister }) => {
   try {
     const url = isRegister 
-      ? 'http://localhost:5000/auth/register'
-      : 'http://localhost:5000/auth/login';
+      ? 'https://hardtimes-server-1.onrender.com/auth/register'
+      : 'https://hardtimes-server-1.onrender.com/auth/login';
 
     const body = isRegister 
       ? { email, password, username } // При регистрации передаём username отдельно
@@ -575,7 +635,6 @@ ipcMain.handle('remove-account', async (_event, nickname: string) => {
 // Настройка поведения авто-апдейтера
 autoUpdater.autoDownload = false; // Не качать без спроса
 autoUpdater.autoInstallOnAppQuit = true;
-event
 // 1. Когда найдено обновление
 autoUpdater.on('update-available', (info) => {
   dialog.showMessageBox({

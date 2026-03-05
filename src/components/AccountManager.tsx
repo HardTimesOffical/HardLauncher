@@ -23,8 +23,12 @@ const AccountManager: React.FC<AccountManagerProps> = ({ currentNickname, onSele
   const [isOpen, setIsOpen] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState<SelectedAccount | null>(null);
-  const [offlineInput, setOfflineInput] = useState('');
-  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [offlineInput, setOfflineInput] = useState(() => {
+    return localStorage.getItem('offline-nickname') || '';
+  });
+  const [isOfflineMode, setIsOfflineMode] = useState(() => {
+    return !!localStorage.getItem('offline-nickname');
+  });
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -42,16 +46,29 @@ const AccountManager: React.FC<AccountManagerProps> = ({ currentNickname, onSele
 
   // Синхронизируем selected с currentNickname при загрузке
   useEffect(() => {
-    if (accounts.length === 0) return;
-    // Если already selected — не перезаписывай
+    if (accounts.length === 0) {
+      const savedOffline = localStorage.getItem('offline-nickname');
+      if (savedOffline && !selected) {
+        setIsOfflineMode(true);
+        setOfflineInput(savedOffline);
+        onSelect(savedOffline, false, undefined);
+      }
+      return;
+    }
     if (selected) return;
-    
-    const found = accounts.find(
-      a => a.nickname === currentNickname && !!a.token
-    );
+
+    const found = accounts.find(a => a.nickname === currentNickname && !!a.token);
     if (found) {
       setSelected({ nickname: found.nickname, provider: found.provider });
       setIsOfflineMode(false);
+      localStorage.removeItem('offline-nickname'); // чистим если вошли в аккаунт
+    } else {
+      const savedOffline = localStorage.getItem('offline-nickname');
+      if (savedOffline) {
+        setIsOfflineMode(true);
+        setOfflineInput(savedOffline);
+        onSelect(savedOffline, false, undefined);
+      }
     }
   }, [accounts]);
 
@@ -67,18 +84,21 @@ const AccountManager: React.FC<AccountManagerProps> = ({ currentNickname, onSele
     onSelect(acc.nickname, !!acc.token, acc.provider);
     setIsOpen(false);
   };
+  
 
   const handleOfflineMode = () => {
     setSelected(null);
     setIsOfflineMode(true);
-    setOfflineInput('');
-    onSelect('', false, undefined);
+    const savedNick = localStorage.getItem('offline-nickname') || '';
+    setOfflineInput(savedNick);
+    onSelect(savedNick, false, undefined);
     setIsOpen(false);
   };
 
   const handleOfflineInput = (val: string) => {
     setOfflineInput(val);
     onSelect(val, false, undefined);
+    localStorage.setItem('offline-nickname', val); // ← сохраняем
   };
 
   const ProviderBadge = ({ provider }: { provider?: string }) => {

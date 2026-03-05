@@ -34,17 +34,16 @@ export default function VersionSelect({
   const selectedVersion = versions.find(v => v.id === selected);
 
   const getTypeLabel = (v: GameVersion) => {
-    if (v.type === 'custom') {
-      if (v.name?.toLowerCase().includes('fabric')) return 'Fabric';
-      if (v.name?.toLowerCase().includes('forge')) return 'Forge';
-      return 'Mod';
-    }
+    if (v.type === 'fabric') return 'Fabric';
+    if (v.type === 'forge') return 'Forge';
+    if (v.type === 'custom') return 'Modpack';
     return 'Vanilla';
   };
 
   const getTypeBadgeClass = (v: GameVersion) => {
-    if (v.name?.toLowerCase().includes('fabric')) return 'text-yellow-400/60 border-yellow-400/20';
-    if (v.name?.toLowerCase().includes('forge')) return 'text-orange-400/60 border-orange-400/20';
+    if (v.type === 'fabric') return 'text-yellow-400/60 border-yellow-400/20';
+    if (v.type === 'forge') return 'text-orange-400/60 border-orange-400/20';
+    if (v.type === 'custom') return 'text-purple-400/60 border-purple-400/20';
     return 'text-white/20 border-white/[0.08]';
   };
 

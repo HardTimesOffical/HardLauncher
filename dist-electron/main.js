@@ -25,6 +25,7 @@ import require$$6 from "string_decoder";
 import { createRequire } from "node:module";
 import require$$4$1 from "https";
 import http2 from "http2";
+import { spawn } from "node:child_process";
 var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
@@ -14373,8 +14374,19 @@ NsisUpdater$1.NsisUpdater = NsisUpdater;
     }
   });
 })(main$1);
-path$q.join(app.getPath("appData"), ".hard-monitoring");
+path$q.join(app.getPath("appData"), ".hlauncher");
 const isVersionDownloaded = (versionId, gamePath) => {
+  if (versionId.startsWith("forge-")) {
+    const versionsDir = path$q.join(gamePath, "versions");
+    if (!fs$p.existsSync(versionsDir)) return false;
+    const gameVersion = versionId.replace("forge-", "");
+    const dirs = fs$p.readdirSync(versionsDir);
+    return dirs.some((d) => {
+      if (!d.toLowerCase().includes("forge")) return false;
+      const parts = d.split("-forge-");
+      return parts[0] === gameVersion;
+    });
+  }
   const versionsPath = path$q.join(gamePath, "versions", versionId);
   const jsonFile2 = path$q.join(versionsPath, `${versionId}.json`);
   return fs$p.existsSync(jsonFile2);
@@ -23660,7 +23672,7 @@ const ensureJava = async (version2, webContents, gamePath) => {
     fs$p.mkdirSync(path$q.join(gamePath, "runtime"), { recursive: true });
   }
   webContents.send("launch-status", `Загрузка Java ${version2}...`);
-  await downloadFile$1(downloadUrl, zipPath, webContents, `Java ${version2}`);
+  await downloadFile$2(downloadUrl, zipPath, webContents, `Java ${version2}`);
   webContents.send("launch-status", `Распаковка Java...`);
   if (fs$p.existsSync(javaFolder)) fs$p.rmSync(javaFolder, { recursive: true, force: true });
   fs$p.mkdirSync(javaFolder, { recursive: true });
@@ -23670,7 +23682,7 @@ const ensureJava = async (version2, webContents, gamePath) => {
   if (!newPath) throw new Error(`Не удалось найти java.exe после распаковки Java ${version2}`);
   return newPath;
 };
-function downloadFile$1(url2, dest, webContents, taskName = "Загрузка...") {
+function downloadFile$2(url2, dest, webContents, taskName = "Загрузка...") {
   return new Promise((resolve, reject) => {
     const file2 = fs$p.createWriteStream(dest);
     const request = https$2.get(url2, {
@@ -23678,7 +23690,7 @@ function downloadFile$1(url2, dest, webContents, taskName = "Загрузка...
     }, (response) => {
       if ([301, 302, 307, 308].includes(response.statusCode || 0)) {
         file2.close();
-        return downloadFile$1(response.headers.location, dest, webContents, taskName).then(resolve).catch(reject);
+        return downloadFile$2(response.headers.location, dest, webContents, taskName).then(resolve).catch(reject);
       }
       if (response.statusCode !== 200) {
         file2.close();
@@ -23765,7 +23777,7 @@ const versions = [
   {
     id: "fabric-latest-1.21.11",
     name: "Fabric 1.21.11",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.21.11",
     loaderVersion: "0.18.4"
   },
@@ -23780,7 +23792,7 @@ const versions = [
   {
     id: "fabric-latest-1.21.10",
     name: "Fabric 1.21.10",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.21.10",
     loaderVersion: "0.18.4"
   },
@@ -23823,10 +23835,17 @@ const versions = [
   {
     id: "fabric-latest-1.21.1",
     name: "Fabric 1.21.1",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.21.1",
     jsonName: "1.21.1",
     loaderVersion: "0.16.9"
+  },
+  {
+    id: "forge-1.21.1",
+    name: "Forge 1.21.1",
+    type: "forge",
+    gameVersion: "1.21.1",
+    loaderVersion: "52.0.47"
   },
   {
     id: "1.20.6",
@@ -23835,7 +23854,7 @@ const versions = [
   {
     id: "fabric-latest-1.20.6",
     name: "Fabric 1.20.6",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.20.6",
     loaderVersion: "0.16.9"
   },
@@ -23850,7 +23869,7 @@ const versions = [
   {
     id: "fabric-latest-1.20.4",
     name: "Fabric 1.20.4",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.20.4",
     loaderVersion: "0.16.9"
   },
@@ -23869,7 +23888,7 @@ const versions = [
   {
     id: "fabric-latest-1.20.1",
     name: "Fabric 1.20.1",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.20.1",
     loaderVersion: "0.16.9"
   },
@@ -23884,7 +23903,7 @@ const versions = [
   {
     id: "fabric-latest-1.19.4",
     name: "Fabric 1.19.4",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.19.4",
     loaderVersion: "0.16.9"
   },
@@ -23899,7 +23918,7 @@ const versions = [
   {
     id: "fabric-latest-1.19.2",
     name: "Fabric 1.19.2",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.19.2",
     loaderVersion: "0.16.9"
   },
@@ -23918,7 +23937,7 @@ const versions = [
   {
     id: "fabric-latest-1.18.2",
     name: "Fabric 1.18.2",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.18.2",
     loaderVersion: "0.16.9"
   },
@@ -23945,7 +23964,7 @@ const versions = [
   {
     id: "fabric-latest-1.16.5",
     name: "Fabric 1.16.5",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.16.5",
     loaderVersion: "0.16.9"
   },
@@ -23988,7 +24007,7 @@ const versions = [
   {
     id: "fabric-latest-1.12.2",
     name: "Fabric 1.12.2",
-    type: "custom",
+    type: "fabric",
     gameVersion: "1.12.2",
     loaderVersion: "0.16.9"
   },
@@ -40028,7 +40047,7 @@ const {
   getAdapter,
   mergeConfig
 } = axios;
-async function downloadFile(url2, dest, webContents, label) {
+async function downloadFile$1(url2, dest, webContents, label) {
   console.log(`[Download] Начало загрузки ${label}: ${url2}`);
   const response = await axios({
     method: "GET",
@@ -40108,7 +40127,7 @@ async function ensureInjector(gamePath, webContents) {
   console.log("[Injector] Скачивание authlib-injector...");
   if (webContents) webContents.send("launch-status", "Подготовка системы скинов...");
   if (!fs$o.existsSync(gamePath)) fs$o.mkdirSync(gamePath, { recursive: true });
-  await downloadFile(downloadUrl, injectorPath, webContents, "Skin Injector");
+  await downloadFile$1(downloadUrl, injectorPath, webContents, "Skin Injector");
   const stat2 = fs$o.statSync(injectorPath);
   if (stat2.size < 1e5) {
     fs$o.unlinkSync(injectorPath);
@@ -40162,6 +40181,104 @@ class AccountManager {
     }
     this.saveAll(accounts);
   }
+}
+const FORGE_MAVEN = "https://maven.minecraftforge.net/net/minecraftforge/forge";
+async function installForge(gameVersion, loaderVersion, gamePath, javaPath, webContents) {
+  const forgeId = `${gameVersion}-forge-${loaderVersion}`;
+  const versionDir = path$q.join(gamePath, "versions", forgeId);
+  const jsonPath = path$q.join(versionDir, `${forgeId}.json`);
+  if (fs$p.existsSync(jsonPath)) {
+    console.log(`[Forge] Уже установлен: ${forgeId}`);
+    return forgeId;
+  }
+  fs$p.mkdirSync(versionDir, { recursive: true });
+  const installerName = `forge-${gameVersion}-${loaderVersion}-installer.jar`;
+  const installerUrl = `${FORGE_MAVEN}/${gameVersion}-${loaderVersion}/${installerName}`;
+  const installerPath = path$q.join(gamePath, "forge-installers", installerName);
+  fs$p.mkdirSync(path$q.join(gamePath, "forge-installers"), { recursive: true });
+  if (!fs$p.existsSync(installerPath)) {
+    webContents.send("launch-status", `Скачивание Forge ${gameVersion}...`);
+    console.log(`[Forge] Скачиваем installer: ${installerUrl}`);
+    await downloadFile(installerUrl, installerPath, webContents);
+  }
+  webContents.send("launch-status", `Установка Forge ${gameVersion}...`);
+  await runForgeInstaller(installerPath, javaPath, gamePath, webContents);
+  const forgeVersionId = findInstalledForgeId(gamePath, gameVersion);
+  if (!forgeVersionId) {
+    throw new Error(`Forge установлен но папка версии не найдена для ${gameVersion}`);
+  }
+  console.log(`[Forge] Успешно установлен: ${forgeVersionId}`);
+  return forgeVersionId;
+}
+async function downloadFile(url2, dest, webContents) {
+  const response = await fetch(url2);
+  if (!response.ok) throw new Error(`Ошибка загрузки Forge: ${response.status} ${url2}`);
+  const total = Number(response.headers.get("content-length") || 0);
+  let current = 0;
+  const writer = fs$p.createWriteStream(dest);
+  const reader = response.body.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    writer.write(value);
+    current += value.length;
+    if (total > 0) {
+      webContents.send("download-progress", {
+        percent: Math.round(current / total * 100),
+        current: current.toString(),
+        total: total.toString(),
+        isChecking: false
+      });
+    }
+  }
+  await new Promise((resolve, reject) => {
+    writer.end();
+    writer.on("finish", resolve);
+    writer.on("error", reject);
+  });
+}
+function runForgeInstaller(installerPath, javaPath, gamePath, webContents) {
+  return new Promise((resolve, reject) => {
+    webContents.send("download-progress", {
+      percent: 50,
+      current: "1",
+      total: "2",
+      isChecking: true
+    });
+    const proc = spawn(javaPath, [
+      "-jar",
+      installerPath,
+      "--installClient",
+      gamePath
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    proc.stdout.on("data", (data) => {
+      const line = data.toString().trim();
+      if (line) {
+        console.log(`[Forge Installer] ${line}`);
+        webContents.send("launch-status", `Forge: ${line.slice(0, 60)}`);
+      }
+    });
+    proc.stderr.on("data", (data) => {
+      console.error(`[Forge Installer ERR] ${data.toString().trim()}`);
+    });
+    proc.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Forge installer завершился с кодом ${code}`));
+      }
+    });
+    proc.on("error", reject);
+  });
+}
+function findInstalledForgeId(gamePath, gameVersion) {
+  const versionsDir = path$q.join(gamePath, "versions");
+  if (!fs$p.existsSync(versionsDir)) return null;
+  const dirs = fs$p.readdirSync(versionsDir);
+  const forgeDir = dirs.find(
+    (d) => d.startsWith(gameVersion) && d.toLowerCase().includes("forge")
+  );
+  return forgeDir || null;
 }
 gracefulFs$1.gracefulify(fs$p);
 const __dirname$1 = path$q.dirname(fileURLToPath(import.meta.url));
@@ -40361,7 +40478,49 @@ async function launchCustom(versionObj, nickname, webContents, authServerUrl, au
   const launcher = createGameLauncher(webContents, !isReady);
   await launcher.launch(opts);
 }
-ipcMain.on("launch-game", async (event, { version: version2, nickname, authProvider }) => {
+async function launchForge(versionObj, nickname, webContents, authServerUrl, auth) {
+  const { gameVersion, loaderVersion } = versionObj;
+  const config = ConfigManager.load();
+  const javaPath = await ensureJava(
+    getJavaVersionNeeded(gameVersion).toString(),
+    webContents,
+    config.gamePath
+  );
+  const forgeVersionId = await installForge(
+    gameVersion,
+    loaderVersion,
+    config.gamePath,
+    javaPath,
+    webContents
+  );
+  const extraArgs = [
+    `-Dminecraft.launcher.brand=HardLauncher`,
+    `-Dminecraft.launcher.version=1.0.0`
+  ];
+  if (authServerUrl) {
+    const injectorPath = await ensureInjector(config.gamePath, webContents);
+    extraArgs.unshift(`-javaagent:${injectorPath}=${authServerUrl}`);
+  }
+  const opts = {
+    authorization: auth || authMethod(nickname),
+    root: config.gamePath,
+    javaPath,
+    version: {
+      number: gameVersion,
+      custom: forgeVersionId,
+      type: "release"
+    },
+    memory: { min: "1G", max: `${config.ram}G` },
+    overrides: {
+      detached: true,
+      extraArgs
+    }
+  };
+  await syncServers(config.gamePath);
+  const launcher = createGameLauncher(webContents, false);
+  await launcher.launch(opts);
+}
+ipcMain.on("launch-game", async (event, { version: version2, nickname }) => {
   const webContents = event.sender;
   const config = ConfigManager.load();
   const accountManager = new AccountManager(config.gamePath);
@@ -40399,7 +40558,11 @@ ipcMain.on("launch-game", async (event, { version: version2, nickname, authProvi
     const versionObj = versionsData.versions.find((v) => v.id === version2);
     if (!versionObj) throw new Error(`Версия ${version2} не найдена!`);
     const mcVersion = versionObj.gameVersion || versionObj.id;
-    if (versionObj.type === "custom") {
+    if (versionObj.type === "forge") {
+      await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth);
+    } else if (versionObj.type === "fabric") {
+      await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth);
+    } else if (versionObj.type === "custom") {
       await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth);
     } else {
       await launchVanilla(mcVersion, nickname, webContents, authServerUrl, config.lastServerIp, userAuth);
@@ -40429,13 +40592,13 @@ ipcMain.handle("get-versions", async () => {
   const config = ConfigManager.load();
   const filters = config.versionFilters || { showRelease: true, showFabric: true, showOld: false };
   return versionsData.versions.filter((v) => {
-    const versionId = v.id.toLowerCase();
     const gameVersion = v.gameVersion || v.id;
     const majorVersion = parseInt(gameVersion.split(".")[1]);
     const isOld = gameVersion.startsWith("1.") && majorVersion < 13;
     if (isOld && !filters.showOld) return false;
-    const isFabric = v.type === "custom" || versionId.includes("fabric");
-    if (isFabric && !filters.showFabric) return false;
+    const isFabric = v.type === "fabric";
+    const isForge = v.type === "forge";
+    if ((isFabric || isForge) && !filters.showFabric) return false;
     if (v.type === "release" && !isOld && !filters.showRelease) return false;
     return true;
   }).map((v) => ({
@@ -40491,7 +40654,7 @@ function setupSettingsHandlers() {
     return defaults2;
   });
 }
-ipcMain.handle("ely-auth", async (event, { email, password }) => {
+ipcMain.handle("ely-auth", async (_, { email, password }) => {
   try {
     const response = await fetch("https://authserver.ely.by/auth/authenticate", {
       method: "POST",
@@ -40517,7 +40680,7 @@ ipcMain.handle("ely-auth", async (event, { email, password }) => {
 });
 ipcMain.handle("hardtimes-auth", async (_, { email, password, username, isRegister }) => {
   try {
-    const url2 = isRegister ? "http://localhost:5000/auth/register" : "http://localhost:5000/auth/login";
+    const url2 = isRegister ? "https://hardtimes-server-1.onrender.com/auth/register" : "https://hardtimes-server-1.onrender.com/auth/login";
     const body = isRegister ? { email, password, username } : { email, password };
     const response = await fetch(url2, {
       method: "POST",
@@ -40557,11 +40720,14 @@ ipcMain.handle("login-and-save", async (_, accountData) => {
     return { success: false, error: errorMessage };
   }
 });
-ipcMain.handle("remove-account", async (event, nickname) => {
+ipcMain.handle("remove-account", async (_event, nickname) => {
   const config = ConfigManager.load();
   const manager = new AccountManager(config.gamePath);
   const accounts = manager.getAll().filter((a) => a.nickname !== nickname);
-  fs$p.writeFileSync(path$q.join(config.gamePath, "accounts.json"), JSON.stringify(accounts, null, 2));
+  fs$p.writeFileSync(
+    path$q.join(config.gamePath, "accounts.json"),
+    JSON.stringify(accounts, null, 2)
+  );
   return accounts;
 });
 main$1.autoUpdater.autoDownload = false;

@@ -3,7 +3,7 @@
     {
       "id": "fabric-latest-1.21.11",
       "name": "Fabric 1.21.11",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.21.11",
       "loaderVersion": "0.18.4"
     },
@@ -12,7 +12,7 @@
     {
       "id": "fabric-latest-1.21.10",
       "name": "Fabric 1.21.10",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.21.10",
       "loaderVersion": "0.18.4"
     },
@@ -29,16 +29,23 @@
     {
       "id": "fabric-latest-1.21.1",
       "name": "Fabric 1.21.1",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.21.1",
       "jsonName": "1.21.1", 
       "loaderVersion": "0.16.9"
+    },
+    {
+      "id": "forge-1.21.1",
+      "name": "Forge 1.21.1",
+      "type": "forge",
+      "gameVersion": "1.21.1",
+      "loaderVersion": "52.0.47"
     },
     { "id": "1.20.6", "type": "release" },
     {
       "id": "fabric-latest-1.20.6",
       "name": "Fabric 1.20.6",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.20.6",
       "loaderVersion": "0.16.9"
     },
@@ -47,7 +54,7 @@
     {
       "id": "fabric-latest-1.20.4",
       "name": "Fabric 1.20.4",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.20.4",
       "loaderVersion": "0.16.9"
     },
@@ -57,7 +64,7 @@
     {
       "id": "fabric-latest-1.20.1",
       "name": "Fabric 1.20.1",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.20.1",
       "loaderVersion": "0.16.9"
     },
@@ -66,7 +73,7 @@
     {
       "id": "fabric-latest-1.19.4",
       "name": "Fabric 1.19.4",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.19.4",
       "loaderVersion": "0.16.9"
     },
@@ -75,7 +82,7 @@
     {
       "id": "fabric-latest-1.19.2",
       "name": "Fabric 1.19.2",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.19.2",
       "loaderVersion": "0.16.9"
     },
@@ -85,7 +92,7 @@
     {
       "id": "fabric-latest-1.18.2",
       "name": "Fabric 1.18.2",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.18.2",
       "loaderVersion": "0.16.9"
     },
@@ -97,7 +104,7 @@
     {
       "id": "fabric-latest-1.16.5",
       "name": "Fabric 1.16.5",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.16.5",
       "loaderVersion": "0.16.9"
     },
@@ -113,7 +120,7 @@
     {
       "id": "fabric-latest-1.12.2",
       "name": "Fabric 1.12.2",
-      "type": "custom",
+      "type": "fabric",
       "gameVersion": "1.12.2",
       "loaderVersion": "0.16.9"
     },

@@ -8,6 +8,7 @@ import Footer from './components/Footer';
 import AuthPage from './pages/auth.page';
 import ProfilePage from './pages/profile.page';
 import ContentPage from './pages/content.page';
+import SkinHead from './components/SkinHead';
 
 interface GameVersion {
   id: string;
@@ -70,7 +71,7 @@ const Icons = {
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('play');
   const [activeAccount, setActiveAccount] = useState<ActiveAccount>({
-    nickname: 'HardPlayer_01',
+    nickname: '',
     provider: 'offline'
   });
   const [nickname, setNickname] = useState('HardPlayer_01');
@@ -86,6 +87,7 @@ function App() {
   });
   const [hasMention, setHasMention] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const currentVersionObj = versions.find(v => v.id === selectedVersion);
   const isDownloaded = currentVersionObj?.isDownloaded;
@@ -98,39 +100,16 @@ function App() {
     'https://cdna.artstation.com/p/assets/images/images/042/400/690/large/mariana-salimena-swamp-b-artstation.jpg?1634406924'
   ];
 
-const refreshVersions = useCallback(async () => {
-    try {
-      const data = await window.ipcRenderer.invoke('get-versions');
-      setVersions(data || []);
-      
-      // Авто-выбор версии, если ничего не выбрано
-      if (data && data.length > 0 && !selectedVersion) {
-        setSelectedVersion(data[0].id);
-      }
-    } catch (err) {
-      console.error("Failed to fetch versions:", err);
-    }
-  }, [selectedVersion]);  
-
-
-  useEffect(() => {
-    refreshVersions();
-  }, []);
-
 
   const stopLaunching = useCallback(() => {
     setIsLaunching(false);
     setProgress(null);
   }, []);
 
-  const fetchVersions = useCallback(async () => {
-    try {
-      const data = await window.ipcRenderer.invoke('get-versions');
-      setVersions(data || []);
-      const savedVersion = localStorage.getItem('selected-game-version');
-      const exists = data.find((v: GameVersion) => v.id === savedVersion);
-      if (savedVersion && exists) setSelectedVersion(savedVersion);
-      else if (data.length > 0) setSelectedVersion(data[0].id);
+ const fetchVersions = useCallback(async () => {
+  try {
+    const data = await window.ipcRenderer.invoke('get-versions');
+    setVersions(data || []);
     } catch (err) {
       console.error("Failed to fetch versions:", err);
     }
@@ -171,18 +150,24 @@ const refreshVersions = useCallback(async () => {
     };
   }, []);
 
- useEffect(() => {
+ // Один useEffect для загрузки настроек — только ОДИН РАЗ
+useEffect(() => {
   const loadSavedData = async () => {
     const config = await window.ipcRenderer.invoke('get-settings');
     if (config.lastNickname) setNickname(config.lastNickname);
-    if (config.lastVersion) setSelectedVersion(config.lastVersion);
-    refreshVersions(); 
+    if (config.lastVersion) {
+      setSelectedVersion(config.lastVersion);
+      localStorage.setItem('selected-game-version', config.lastVersion);
+    }
+    setSettingsLoaded(true);
   };
   loadSavedData();
-}, [refreshVersions])
+}, []);
   
 
   useEffect(() => {
+    if (!settingsLoaded) return; // не сохраняем до загрузки
+    
     const saveData = async () => {
       const currentConfig = await window.ipcRenderer.invoke('get-settings');
       await window.ipcRenderer.invoke('save-settings', {
@@ -190,10 +175,11 @@ const refreshVersions = useCallback(async () => {
         lastNickname: nickname,
         lastVersion: selectedVersion
       });
+      localStorage.setItem('selected-game-version', selectedVersion);
     };
     const timer = setTimeout(saveData, 500);
     return () => clearTimeout(timer);
-  }, [nickname, selectedVersion]);
+  }, [nickname, selectedVersion, settingsLoaded]);
 
   useEffect(() => {
     const handleProgress = (_: any, value: any) => {
@@ -356,18 +342,27 @@ const refreshVersions = useCallback(async () => {
           {/* Разделитель */}
           <div className="flex-1" />
 
-          {/* Аватар текущего игрока */}
-          <button
-            onClick={() => setActiveTab('profile')}
-            className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 hover:border-[#00ff95]/50 transition-all mb-1"
-            title={nickname}
-          >
-            <img
-              src={`https://minotar.net/helm/${nickname || 'char'}/64.png`}
-              className="w-full h-full object-cover"
-              alt=""
+         {/* Аватар текущего игрока */}
+        <button
+          onClick={() => setActiveTab('profile')}
+          className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 hover:border-[#1bd96a]/50 transition-all mb-1"
+          title={nickname || 'Профиль'}
+        >
+          {nickname && nickname.trim() !== '' ? (
+            <SkinHead
+              nickname={nickname}
+              provider={activeAccount.provider !== 'offline' ? activeAccount.provider : undefined}
+              size={32}
+              className="w-full h-full"
             />
-          </button>
+          ) : (
+            <div className="w-full h-full bg-white/[0.05] flex items-center justify-center">
+              <svg className="w-4 h-4 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+          )}
+        </button>
         </aside>
 
         {/* КОНТЕНТ */}
