@@ -15,6 +15,9 @@ import { syncServers } from './modules/server.manager';
 import { ensureInjector } from './modules/server.manager'
 import { AccountManager } from './modules/account.manager';
 import { installForge } from './modules/installers/forge.installer'
+import { InstanceManager } from './modules/instance.manager';
+import { installModpack } from './modules/modpack.installer';
+import { installMod, removeMod, getInstalledMods } from './modules/mod.installer';
 
 gracefulFs.gracefulify(fs)
 
@@ -211,7 +214,8 @@ async function launchCustom(
   nickname: string, 
   webContents: Electron.WebContents,
   authServerUrl: string,
-  auth?: IUser // Пятый аргумент: переданный объект авторизации
+  auth?: IUser, // Пятый аргумент: переданный объект авторизации
+  instanceDir?: string  // ← добавь
 ) {
   const { id, gameVersion, loaderVersion } = versionObj;
   const config = ConfigManager.load();
@@ -267,7 +271,8 @@ async function launchCustom(
     },
     overrides: {
       detached: true,
-      extraArgs: extraArgs // Используем наш подготовленный массив
+      extraArgs: extraArgs,
+       ...(instanceDir ? { gameDirectory: instanceDir } : {})
     },
     skipAsync: true // Для кастомных версий часто требуется
   };
@@ -290,7 +295,8 @@ async function launchForge(
   nickname: string,
   webContents: Electron.WebContents,
   authServerUrl: string,
-  auth?: IUser
+  auth?: IUser,
+  instanceDir?: string
 ) {
   const { gameVersion, loaderVersion } = versionObj;
   const config = ConfigManager.load();
@@ -301,7 +307,6 @@ async function launchForge(
     config.gamePath
   );
 
-  // Устанавливаем Forge если нужно
   const forgeVersionId = await installForge(
     gameVersion,
     loaderVersion,
@@ -310,15 +315,43 @@ async function launchForge(
     webContents
   );
 
-  // JVM аргументы
-  const extraArgs: string[] = [
-    `-Dminecraft.launcher.brand=HardLauncher`,
-    `-Dminecraft.launcher.version=1.0.0`,
-  ];
+  const lib = path.join(config.gamePath, 'libraries');
+  const sep = path.delimiter; // ; на Windows
+
+const customArgs: string[] = [
+  `-Djava.net.preferIPv6Addresses=system`,
+  `-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,fmlcore,javafmllanguage,lowcodelanguage,mclanguage,forge-,${forgeVersionId}.jar`,
+  `-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar`,
+  `-DlibraryDirectory=${lib}`,
+  `-p`,
+  [
+    `${lib}/cpw/mods/bootstraplauncher/1.1.2/bootstraplauncher-1.1.2.jar`,
+    `${lib}/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar`,
+    `${lib}/org/ow2/asm/asm-commons/9.8/asm-commons-9.8.jar`,
+    `${lib}/org/ow2/asm/asm-util/9.8/asm-util-9.8.jar`,
+    `${lib}/org/ow2/asm/asm-analysis/9.8/asm-analysis-9.8.jar`,
+    `${lib}/org/ow2/asm/asm-tree/9.8/asm-tree-9.8.jar`,
+    `${lib}/org/ow2/asm/asm/9.8/asm-9.8.jar`,
+    `${lib}/net/minecraftforge/JarJarFileSystems/0.3.19/JarJarFileSystems-0.3.19.jar`,
+  ].join(sep),
+  `--add-modules`, `ALL-MODULE-PATH`,
+  `--add-opens`, `java.base/java.util.jar=cpw.mods.securejarhandler`,
+  `--add-opens`, `java.base/java.lang.invoke=cpw.mods.securejarhandler`,
+  `--add-exports`, `java.base/sun.security.util=cpw.mods.securejarhandler`,
+  `--add-exports`, `jdk.naming.dns/com.sun.jndi.dns=java.naming`,
+  `-Dminecraft.launcher.brand=HardLauncher`,
+  `-Dminecraft.launcher.version=1.0.0`,
+];
+
+if (authServerUrl) {
+  const injectorPath = await ensureInjector(config.gamePath, webContents);
+  customArgs.unshift(`-javaagent:${injectorPath}=${authServerUrl}`);
+}
+
 
   if (authServerUrl) {
     const injectorPath = await ensureInjector(config.gamePath, webContents);
-    extraArgs.unshift(`-javaagent:${injectorPath}=${authServerUrl}`);
+    customArgs.unshift(`-javaagent:${injectorPath}=${authServerUrl}`);
   }
 
   const opts: any = {
@@ -331,9 +364,10 @@ async function launchForge(
       type: 'release',
     },
     memory: { min: '1G', max: `${config.ram}G` },
+    customArgs, // ← JVM аргументы
     overrides: {
       detached: true,
-      extraArgs,
+      ...(instanceDir ? { gameDirectory: instanceDir } : {})
     },
   };
 
@@ -342,72 +376,73 @@ async function launchForge(
   const launcher = createGameLauncher(webContents, false);
   await launcher.launch(opts);
 }
-
 // ======================================================
 // 4. ГЛАВНЫЙ IPC ВХОД
 // ======================================================
 
 // Добавь authProvider в деструктуризацию аргументов
-ipcMain.on('launch-game', async (event, { version, nickname }) => {
+ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
   const webContents = event.sender;
   const config = ConfigManager.load();
-  
-  // 1. Инициализируем менеджер аккаунтов, чтобы найти UUID и токен
+
   const accountManager = new AccountManager(config.gamePath);
   const account = accountManager.getAll().find(a => a.nickname === nickname);
 
   let authServerUrl = '';
   let userAuth: IUser;
 
-  // 2. ОПРЕДЕЛЯЕМ РЕЖИМ ВХОДА
-  // Если аккаунт найден и это не "пустышка" без токена
   if (account && account.uuid && account.token && account.token !== "0") {
-    
-    // ПРОВЕРЯЕМ ПРОВАЙДЕРА ДЛЯ СИСТЕМЫ СКИНОВ
-    if (account.provider === 'ely') {
-       authServerUrl = 'ely.by';
-    } else if (account.provider === 'internal') {
-      // Твой будущий бэкенд (Hard Times)
-      authServerUrl = 'http://localhost:5000/user'; 
-    }
-
+    if (account.provider === 'ely') authServerUrl = 'ely.by';
+    else if (account.provider === 'internal') authServerUrl = 'https://hardtimes-server-1.onrender.com/user';
     const formattedUUID = formatUUID(account.uuid);
-
-    // Формируем объект авторизации с реальными данными для скинов
     userAuth = {
-        access_token: account.token,
-        client_token: formattedUUID, // Используем с дефисами
-        uuid: formattedUUID,        // Используем с дефисами
-        name: nickname,
-        user_properties: {},
-       meta: { 
-          type: "mojang", // Всегда "mojang" для Ely.by
-          demo: false 
-        }
-      };
-    console.log(`[Launch] Авторизованный вход (${account.provider}). Инжектор: ${authServerUrl}`);
-    } else {
-    // OFFLINE РЕЖИМ (Просто вход по нику)
-    authServerUrl = ''; 
-    userAuth = authMethod(nickname); // Твоя функция генерации UUID через MD5
-    
-    console.log(`[Launch] Offline вход для игрока ${nickname}. Система скинов отключена.`);
+      access_token: account.token,
+      client_token: formattedUUID,
+      uuid: formattedUUID,
+      name: nickname,
+      user_properties: {},
+      meta: { type: "mojang", demo: false }
+    };
+  } else {
+    authServerUrl = '';
+    userAuth = authMethod(nickname);
   }
 
   try {
-    // 3. Ищем версию в манифесте
+    // Если передан instanceId — запускаем инстанс модпака
+    if (instanceId) {
+      const instanceManager = new InstanceManager(config.gamePath);
+      const instance = instanceManager.get(instanceId);
+      if (!instance) throw new Error(`Инстанс ${instanceId} не найден`);
+
+      const instanceDir = instanceManager.getInstanceDir(instanceId);
+      instanceManager.updateLastPlayed(instanceId);
+
+      // Формируем фейковый versionObj из данных инстанса
+      const versionObj = {
+        id: `fabric-latest-${instance.gameVersion}`,
+        type: instance.type === 'modpack' ? 'fabric' : instance.type,
+        gameVersion: instance.gameVersion,
+        loaderVersion: instance.loaderVersion,
+      };
+
+      if (versionObj.type === 'forge') {
+        const forgeObj = { ...versionObj, type: 'forge' };
+        await launchForge(forgeObj, nickname, webContents, authServerUrl, userAuth, instanceDir);
+      } else {
+        await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth, instanceDir);
+      }
+      return;
+    }
+
+    // Обычный запуск из манифеста
     const versionObj = (versionsData.versions as any[]).find(v => v.id === version);
     if (!versionObj) throw new Error(`Версия ${version} не найдена!`);
-
     const mcVersion = versionObj.gameVersion || versionObj.id;
 
-    // 4. ЗАПУСК
     if (versionObj.type === 'forge') {
       await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth);
-    } else if (versionObj.type === 'fabric') {
-      await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth);
-    } else if (versionObj.type === 'custom') {
-      // модпаки — в будущем
+    } else if (versionObj.type === 'fabric' || versionObj.type === 'custom') {
       await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth);
     } else {
       await launchVanilla(mcVersion, nickname, webContents, authServerUrl, config.lastServerIp, userAuth);
@@ -470,10 +505,20 @@ ipcMain.handle('get-versions', async () => {
 });
 
 
-ipcMain.on('window-control', (_, action: 'minimize' | 'close') => {
-  if (action === 'minimize') win?.minimize()
-  if (action === 'close') app.quit()
-})
+// В основном файле Electron (main.ts / index.ts)
+ipcMain.on('window-control', (_, action: 'minimize' | 'maximize' | 'close') => {
+  if (action === 'minimize') {
+    win?.minimize();
+  } else if (action === 'maximize') {
+    if (win?.isMaximized()) {
+      win?.unmaximize();
+    } else {
+      win?.maximize();
+    }
+  } else if (action === 'close') {
+    app.quit();
+  }
+});
 
 ipcMain.on('open-game-folder', () => {
   // Всегда берем путь из конфига, который актуален в этот момент
@@ -534,7 +579,140 @@ ipcMain.handle('get-default-settings', async () => {
     ConfigManager.save(defaults);
     return defaults;
   });
-} // <---
+}
+
+// ======================================================
+// 7. моды и паки
+// ======================================================
+
+ipcMain.handle('get-instances', async () => {
+  const config = ConfigManager.load();
+  const manager = new InstanceManager(config.gamePath);
+  const instances = manager.getAll();
+
+  // Добавляем флаг готовности игры
+  return instances.map(inst => {
+    const loaderId = inst.type === 'forge'
+      ? `forge-${inst.gameVersion}`
+      : `fabric-latest-${inst.gameVersion}`;
+    
+    return {
+      ...inst,
+      gameReady: isVersionDownloaded(loaderId, config.gamePath),
+    };
+  });
+});
+
+ipcMain.handle('remove-instance', async (_, instanceId: string) => {
+  const config = ConfigManager.load();
+  const manager = new InstanceManager(config.gamePath);
+  manager.remove(instanceId);
+  return { success: true };
+});
+
+
+
+// -------------------------------------------------------
+// УСТАНОВКА МОДПАКА
+// -------------------------------------------------------
+
+ipcMain.handle('install-modpack', async (event, {
+  mrpackUrl,
+  projectId,
+  versionId,
+  projectName,
+  iconUrl,
+}: {
+  mrpackUrl: string;
+  projectId: string;
+  versionId: string;
+  projectName: string;
+  iconUrl: string | null;
+}) => {
+  const config = ConfigManager.load();
+  const webContents = event.sender;
+
+  try {
+    const instanceId = await installModpack(
+      mrpackUrl,
+      projectId,
+      versionId,
+      projectName,
+      iconUrl,
+      config.gamePath,
+      (progress) => {
+        webContents.send('modpack-install-progress', progress);
+      }
+    );
+    return { success: true, instanceId };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+});
+
+// -------------------------------------------------------
+// УСТАНОВКА МОДА / РЕСУРСПАКА / ШЕЙДЕРА
+// -------------------------------------------------------
+
+ipcMain.handle('install-mod', async (_, {
+  url,
+  filename,
+  projectType,
+  instanceId,
+}: {
+  url: string;
+  filename: string;
+  projectType: 'mod' | 'resourcepack' | 'shader';
+  instanceId?: string;
+}) => {
+  const config = ConfigManager.load();
+  return await installMod(url, filename, projectType, config.gamePath, instanceId);
+});
+
+ipcMain.handle('remove-mod', async (_, {
+  filename,
+  projectType,
+  instanceId,
+}: {
+  filename: string;
+  projectType: 'mod' | 'resourcepack' | 'shader';
+  instanceId?: string;
+}) => {
+  const config = ConfigManager.load();
+  await removeMod(filename, projectType, config.gamePath, instanceId);
+  return { success: true };
+});
+
+ipcMain.handle('get-installed-mods', async (_, {
+  projectType,
+  instanceId,
+}: {
+  projectType: 'mod' | 'resourcepack' | 'shader';
+  instanceId?: string;
+}) => {
+  const config = ConfigManager.load();
+  return getInstalledMods(projectType, config.gamePath, instanceId);
+});
+
+// -------------------------------------------------------
+// ЗАПУСК ИНСТАНСА (модпака)
+// -------------------------------------------------------
+// В существующем ipcMain.on('launch-game') добавить поддержку instanceId:
+// При запуске передавать overrides.gameDirectory = instanceDir
+
+// Изменить в launch-game:
+// ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
+//   ...
+//   // При запуске vanilla/fabric/forge добавить:
+//   if (instanceId) {
+//     const instanceManager = new InstanceManager(config.gamePath);
+//     const instanceDir = instanceManager.getInstanceDir(instanceId);
+//     instanceManager.updateLastPlayed(instanceId);
+//     // Передать в opts:
+//     opts.overrides = { ...opts.overrides, gameDirectory: instanceDir };
+//   }
+
+//АВТОРИЗАЦИЯ
 
 ipcMain.handle('ely-auth', async (_, { email, password }) => {
   try {

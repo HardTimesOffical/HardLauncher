@@ -5,6 +5,7 @@ interface GameVersion {
   type: string;
   isDownloaded: boolean;
   name?: string;
+  instanceId?: string;
 }
 
 export default function VersionSelect({
@@ -36,18 +37,18 @@ export default function VersionSelect({
   const getTypeLabel = (v: GameVersion) => {
     if (v.type === 'fabric') return 'Fabric';
     if (v.type === 'forge') return 'Forge';
-    if (v.type === 'custom') return 'Modpack';
+    if (v.type === 'modpack' || v.type === 'custom') return 'Modpack';
     return 'Vanilla';
   };
 
   const getTypeBadgeClass = (v: GameVersion) => {
+    // Используем opacity для совместимости с темами
     if (v.type === 'fabric') return 'text-yellow-400/60 border-yellow-400/20';
     if (v.type === 'forge') return 'text-orange-400/60 border-orange-400/20';
-    if (v.type === 'custom') return 'text-purple-400/60 border-purple-400/20';
-    return 'text-white/20 border-white/[0.08]';
+    if (v.type === 'modpack' || v.type === 'custom') return 'text-purple-400/60 border-purple-400/20';
+    return 'text-[var(--color-text-dim)] border-[var(--color-border)]';
   };
 
-  // Установленные сверху
   const sorted = [...versions].sort((a, b) => {
     if (a.isDownloaded && !b.isDownloaded) return -1;
     if (!a.isDownloaded && b.isDownloaded) return 1;
@@ -57,26 +58,28 @@ export default function VersionSelect({
   return (
     <div className="relative no-drag" ref={containerRef}>
 
-      {/* Селектор */}
+      {/* Селектор (Главная кнопка) */}
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={`flex items-center justify-between gap-2 px-3 h-9 rounded-lg border transition-all cursor-pointer min-w-[150px]
-          ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/[0.04]'}
-          ${isOpen ? 'bg-white/[0.06] border-white/[0.12]' : 'bg-white/[0.02] border-white/[0.06]'}`}
+          ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[var(--color-bg-subtle,rgba(255,255,255,0.04))]'}
+          ${isOpen 
+            ? 'bg-[var(--color-bg-overlay,rgba(255,255,255,0.06))] border-[var(--color-brand)]' 
+            : 'bg-[var(--color-bg-base,rgba(255,255,255,0.02))] border-[var(--color-border,rgba(255,255,255,0.06))]'}`}
       >
         <div className="flex items-center gap-2 min-w-0">
           <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-            selectedVersion?.isDownloaded ? 'bg-[#1bd96a]' : 'bg-white/15'
+            selectedVersion?.isDownloaded ? 'bg-[var(--color-brand,#1bd96a)] shadow-[0_0_8px_var(--color-brand)]' : 'bg-[var(--color-text-dim)] opacity-20'
           }`} />
           <span className={`text-[10px] truncate font-medium ${
-            selectedVersion?.isDownloaded ? 'text-white/80' : 'text-white/35'
+            selectedVersion?.isDownloaded ? 'text-[var(--color-text)]' : 'text-[var(--color-text-dim)]'
           }`}>
             {selectedVersion?.name || selected || 'Выбрать...'}
           </span>
         </div>
         <svg
           className={`w-2.5 h-2.5 flex-shrink-0 transition-transform duration-200 ${
-            isOpen ? 'rotate-180 text-white/50' : 'text-white/20'
+            isOpen ? 'rotate-180 text-[var(--color-brand)]' : 'text-[var(--color-text-dim)]'
           }`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
@@ -84,60 +87,70 @@ export default function VersionSelect({
         </svg>
       </div>
 
-      {/* Дропдаун */}
-      {isOpen && (
-        <div className="absolute bottom-[calc(100%+6px)] left-0 w-60 bg-[#111] border border-white/[0.08] rounded-xl shadow-2xl z-[200] overflow-hidden animate-fade-in">
+      {/* Дропдаун (Выпадающий список) */}
+{/* Дропдаун */}
+{isOpen && (
+  <div 
+    className="absolute bottom-[calc(100%+6px)] left-0 w-64 rounded-xl shadow-2xl z-[200] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 border transition-colors"
+    style={{ 
+      /* Используем переменные из твоего CSS */
+      backgroundColor: 'var(--color-bg-elevated)', 
+      borderColor: 'var(--color-border)' 
+    }}
+  >
+    {/* Заголовок */}
+    <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-subtle)' }}>
+      <span className="text-[8px] uppercase tracking-widest opacity-60" style={{ color: 'var(--color-text-dim)' }}>
+        Доступные версии
+      </span>
+    </div>
 
-          <div className="px-3 py-2 border-b border-white/[0.05]">
-            <span className="text-[8px] uppercase text-white/20 tracking-widest">Версии игры</span>
+    <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-0.5">
+      {sorted.map((v) => {
+        const isActive = v.id === selected;
+        return (
+          <div
+            key={v.id}
+            onClick={() => { onSelect(v.id); setIsOpen(false); }}
+            className="flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-all group"
+            style={{ 
+              /* Динамический фон ховера и активного элемента */
+              backgroundColor: isActive ? 'var(--color-brand-dim)' : 'transparent'
+            }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div 
+                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-shadow ${
+                  v.isDownloaded ? 'opacity-100' : 'opacity-20'
+                }`}
+                style={{ 
+                  backgroundColor: v.isDownloaded ? 'var(--color-brand)' : 'var(--color-text-dim)',
+                  boxShadow: (v.isDownloaded && isActive) ? '0 0 8px var(--color-brand)' : 'none'
+                }}
+              />
+              <span 
+                className={`text-[10px] truncate ${isActive ? 'font-bold' : ''}`}
+                style={{ color: isActive ? 'var(--color-brand)' : 'var(--color-text)' }}
+              >
+                {v.name || v.id}
+              </span>
+            </div>
+
+            {/* Тип версии (Forge/Fabric) */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span 
+                className={`text-[7px] font-bold uppercase border px-1.5 py-0.5 rounded ${getTypeBadgeClass(v)}`}
+                style={{ backgroundColor: 'var(--color-bg)' }}
+              >
+                {getTypeLabel(v)}
+              </span>
+            </div>
           </div>
-
-          <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-0.5">
-            {sorted.map((v) => {
-              const isActive = v.id === selected;
-              return (
-                <div
-                  key={v.id}
-                  onClick={() => { onSelect(v.id); setIsOpen(false); }}
-                  className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-all group
-                    ${isActive ? 'bg-[#1bd96a]/10' : 'hover:bg-white/[0.04]'}`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                      v.isDownloaded
-                        ? isActive ? 'bg-[#1bd96a]' : 'bg-[#1bd96a]/50'
-                        : 'bg-white/10'
-                    }`} />
-                    <span className={`text-[10px] truncate ${
-                      v.isDownloaded
-                        ? isActive ? 'text-[#1bd96a] font-semibold' : 'text-white/80'
-                        : 'text-white/30'
-                    }`}>
-                      {v.name || v.id}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className={`text-[7px] font-bold uppercase border px-1.5 py-0.5 rounded ${getTypeBadgeClass(v)}`}>
-                      {getTypeLabel(v)}
-                    </span>
-                    {isActive && v.isDownloaded && (
-                      <svg className="w-3 h-3 text-[#1bd96a]" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                      </svg>
-                    )}
-                    {!v.isDownloaded && (
-                      <svg className="w-3 h-3 text-white/15 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        );
+      })}
+    </div>
+  </div>
+)}
     </div>
   );
 }

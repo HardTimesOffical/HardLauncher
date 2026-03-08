@@ -32,22 +32,95 @@
    ROOT & BASE
    ===================== */
 :root {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Тёмная тема остается без изменений */
+  --color-bg: #0f0f0f;
+  --color-bg-elevated: #111111;
+  --color-bg-subtle: #161616; /* Чуть светлее основного фона */
+  --color-bg-overlay: #0a0a0a;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-brand: #5da9ff;
+  --color-brand-dim: rgba(93, 169, 255, 0.15);
+  --color-text: rgba(255, 255, 255, 0.85);
+  --color-text-dim: rgba(255, 255, 255, 0.4);
+}
+
+[data-theme='light'] {
+  /* Основной фон — мягкий белый (не ослепляющий) */
+  --color-bg: #f8f9fa; 
+  /* Подложка контента — чистый белый */
+  --color-bg-elevated: #ffffff;
+  /* ТОТ САМЫЙ ЦВЕТ: сероватый для инпутов, неактивных вкладок и рамок */
+  --color-bg-subtle: #edf2f7; 
+  /* Глубокий серый для футеров или теней */
+  --color-bg-overlay: #e2e8f0; 
+  
+  --color-border: #cbd5e0;
+  --color-brand: #3b82f6;
+  --color-brand-dim: rgba(59, 130, 246, 0.1);
+  
+  --color-text: #2d3748;
+  --color-text-dim: #718096;
+}
+
+[data-theme='crimson'] {
+  --color-bg: #0d0202;
+  --color-bg-elevated: #1a0505;
+  --color-bg-subtle: #240808;
+  --color-bg-overlay: rgba(0, 0, 0, 0.8);
+  --color-border: rgba(255, 50, 50, 0.15);
+  --color-brand: #ff3c3c;
+  --color-brand-dim: rgba(255, 60, 60, 0.15);
+  --color-text: #ffebeb;
+  --color-text-dim: #946e6e;
+  --grad-accent: linear-gradient(135deg, #ff3c3c 0%, #700000 100%);
+}
+
+/* Cyberpunk (Неоновый фиолетовый/синий) */
+[data-theme='cyber'] {
+  --color-bg: #0a0514;
+  --color-bg-elevated: #120b24;
+  --color-bg-subtle: #1a1233;
+  --color-bg-overlay: rgba(5, 2, 10, 0.9);
+  --color-border: rgba(188, 19, 254, 0.2);
+  --color-brand: #bc13fe;
+  --color-brand-dim: rgba(188, 19, 254, 0.2);
+  --color-text: #f0e6ff;
+  --color-text-dim: #8e7fb0;
+  --grad-accent: linear-gradient(135deg, #bc13fe 0%, #2575fc 100%);
+}
+
+/* Midnight Forest (Глубокий изумрудный) */
+[data-theme='forest'] {
+  --color-bg: #040806;
+  --color-bg-elevated: #08120e;
+  --color-bg-subtle: #0c1a15;
+  --color-bg-overlay: rgba(0, 5, 2, 0.9);
+  --color-border: rgba(27, 217, 106, 0.15);
   --color-brand: #1bd96a;
   --color-brand-dim: rgba(27, 217, 106, 0.15);
-  --color-bg: #0f0f0f;
-  --color-bg-elevated: #141414;
-  --color-bg-overlay: #1a1a1a;
-  --color-border: rgba(255, 255, 255, 0.06);
-  --color-border-hover: rgba(255, 255, 255, 0.12);
-  --color-text: rgba(255, 255, 255, 0.85);
-  --color-text-dim: rgba(255, 255, 255, 0.35);
-  --color-text-muted: rgba(255, 255, 255, 0.15);
+  --color-text: #eafff3;
+  --color-text-dim: #6e947f;
+  --grad-accent: linear-gradient(135deg, #1bd96a 0%, #0a4d29 100%);
+}
+
+/* Amoled (Абсолютно черный для OLED) */
+[data-theme='amoled'] {
+  --color-bg: #000000;
+  --color-bg-elevated: #050505;
+  --color-bg-subtle: #0a0a0a;
+  --color-bg-overlay: #000000;
+  --color-border: #1a1a1a;
+  --color-brand: #1bd96a;
+  --color-brand-dim: rgba(27, 217, 106, 0.1);
+  --color-text: #ffffff;
+  --color-text-dim: #666666;
 }
 
 *, *::before, *::after {
   box-sizing: border-box;
 }
+
+
 
 body {
   background: var(--color-bg);

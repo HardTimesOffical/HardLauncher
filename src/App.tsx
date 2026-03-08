@@ -9,11 +9,14 @@ import AuthPage from './pages/auth.page';
 import ProfilePage from './pages/profile.page';
 import ContentPage from './pages/content.page';
 import SkinHead from './components/SkinHead';
+import TitleBar from './components/TitleBar';
 
 interface GameVersion {
   id: string;
   type: string;
   isDownloaded: boolean;
+  name?: string;
+  instanceId?: string; // ← добавь
 }
 
 interface ProgressData {
@@ -95,8 +98,6 @@ function App() {
   const bgImages = [
     'https://cdna.artstation.com/p/assets/images/images/042/400/684/large/mariana-salimena-swamp-artstation.jpg?1634406914',
     'https://cdnb.artstation.com/p/assets/images/images/042/400/679/large/mariana-salimena-birch-forest-artstation.jpg?1634406904',
-    'https://resourcepack.net/fl/images/2020/03/Bare-Bones-Resource-Pack-1.jpg',
-    'https://resourcepack.net/fl/images/2020/03/Bare-Bones-Resource-Pack.jpg',
     'https://cdna.artstation.com/p/assets/images/images/042/400/690/large/mariana-salimena-swamp-b-artstation.jpg?1634406924'
   ];
 
@@ -106,48 +107,70 @@ function App() {
     setProgress(null);
   }, []);
 
- const fetchVersions = useCallback(async () => {
-  try {
-    const data = await window.ipcRenderer.invoke('get-versions');
-    setVersions(data || []);
-    } catch (err) {
-      console.error("Failed to fetch versions:", err);
-    }
-  }, []);
+const fetchVersions = useCallback(async () => {
+  const [data, instances] = await Promise.all([
+    window.ipcRenderer.invoke('get-versions'),
+    window.ipcRenderer.invoke('get-instances').catch(() => []),
+  ]);
 
-  useEffect(() => { fetchVersions(); }, [fetchVersions]);
+  const instanceVersions: GameVersion[] = (instances || []).map((inst: any) => ({
+    id: inst.id,
+    name: inst.name,
+    type: 'modpack',
+    isDownloaded: true,
+    instanceId: inst.id,
+  }));
 
-  useEffect(() => {
-  window.ipcRenderer.invoke('refresh-accounts').then((accounts) => {
-    // Если текущий аккаунт потерял токен — сбросить в офлайн
-    if (activeAccount.provider !== 'offline') {
-      const current = accounts.find(
-        (a: any) => a.nickname === activeAccount.nickname && a.provider === activeAccount.provider
-      );
-      if (current && !current.token) {
-        setActiveAccount({ nickname: current.nickname, provider: 'offline' });
-        setNickname(current.nickname);
+  setVersions([...instanceVersions, ...(data || [])]);
+}, []);
+
+    useEffect(() => { fetchVersions(); }, [fetchVersions]);
+
+    useEffect(() => {
+    window.ipcRenderer.invoke('refresh-accounts').then((accounts) => {
+      // Если текущий аккаунт потерял токен — сбросить в офлайн
+      if (activeAccount.provider !== 'offline') {
+        const current = accounts.find(
+          (a: any) => a.nickname === activeAccount.nickname && a.provider === activeAccount.provider
+        );
+        if (current && !current.token) {
+          setActiveAccount({ nickname: current.nickname, provider: 'offline' });
+          setNickname(current.nickname);
+        }
       }
-    }
-    });
-  }, []);
+      });
+    }, []);
 
   useEffect(() => {
     const handleRefresh = async () => {
-      console.log("Обновление списка версий...");
-      const data = await window.ipcRenderer.invoke('get-versions');
-      setVersions(data || []);
+      await fetchVersions(); // ← используй fetchVersions вместо прямого setVersions
     };
 
-  // Подписываемся
-  window.ipcRenderer.on('filters-changed', handleRefresh);
-
-  // Очистка при размонтировании
-  return () => {
-      if (window.ipcRenderer.removeListener) {
-        window.ipcRenderer.removeListener('filters-changed', handleRefresh);
-      }
+    window.ipcRenderer.on('filters-changed', handleRefresh);
+    return () => {
+      window.ipcRenderer.removeListener('filters-changed', handleRefresh);
     };
+  }, [fetchVersions]);
+
+  useEffect(() => {
+    const handler = () => {
+      window.ipcRenderer.invoke('get-instances').then((instances: any[]) => {
+        if (!instances?.length) return;
+                  const instanceVersions = instances.map((inst: any) => ({
+            id: inst.id,
+            name: inst.name,
+            type: 'modpack',
+            isDownloaded: inst.gameReady, // ← теперь зависит от реальной готовности
+            instanceId: inst.id,
+          }));
+        setVersions(prev => {
+          const withoutInstances = prev.filter((v: any) => !v.instanceId);
+          return [...instanceVersions, ...withoutInstances];
+        });
+      });
+    };
+    window.ipcRenderer.on('instances-updated', handler);
+    return () => { window.ipcRenderer.removeListener('instances-updated', handler); };
   }, []);
 
  // Один useEffect для загрузки настроек — только ОДИН РАЗ
@@ -180,6 +203,16 @@ useEffect(() => {
     const timer = setTimeout(saveData, 500);
     return () => clearTimeout(timer);
   }, [nickname, selectedVersion, settingsLoaded]);
+
+  useEffect(() => {
+    const applyTheme = async () => {
+      const config = await window.ipcRenderer.invoke('get-settings');
+      if (config?.theme) {
+        document.body.setAttribute('data-theme', config.theme);
+      }
+    };
+    applyTheme();
+  }, []);
 
   useEffect(() => {
     const handleProgress = (_: any, value: any) => {
@@ -241,10 +274,16 @@ useEffect(() => {
 
   const handleLaunch = () => {
     setIsLaunching(true);
+    
+    const currentVersion = versions.find((v: any) => v.id === selectedVersion);
+    const isInstance = (currentVersion as any)?.instanceId;
+
     setStatusText(isDownloaded ? 'Starting game...' : 'Downloading files...');
+    
     window.ipcRenderer.send('launch-game', {
       nickname,
       version: selectedVersion,
+      instanceId: isInstance ? selectedVersion : undefined, // id инстанса = id версии
       authProvider,
       token: authToken
     });
@@ -276,177 +315,148 @@ useEffect(() => {
   ];
 
   return (
-    <div className="h-screen w-full bg-[#0f0f0f] text-white flex flex-col overflow-hidden border border-white/5 shadow-2xl">
+   <div className="h-screen w-full flex flex-col overflow-hidden border shadow-2xl" 
+     style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }}>
       
-      {/* TITLEBAR — drag region */}
-      <div 
-        className="h-9 bg-[#0a0a0a] flex items-center justify-between px-4 border-b border-white/5 flex-shrink-0"
-        style={{ WebkitAppRegion: 'drag' } as any}
-      >
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#00ff95] shadow-[0_0_6px_#00ff95]" />
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Hard Times</span>
-        </div>
-        <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
-          <button
-            onClick={() => window.ipcRenderer.send('window-control', 'minimize')}
-            className="w-7 h-7 flex items-center justify-center text-white/30 hover:text-white hover:bg-white/5 rounded transition-all"
-          >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeWidth={2} d="M20 12H4" />
-            </svg>
-          </button>
-          <button
-            onClick={() => window.ipcRenderer.send('window-control', 'close')}
-            className="w-7 h-7 flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded transition-all"
-          >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
+  {/* TITLEBAR — drag region */}
+  <TitleBar />
 
-      {/* ОСНОВНОЙ LAYOUT */}
-      <div className="flex-1 flex overflow-hidden">
+  {/* ОСНОВНОЙ LAYOUT */}
+  <div className="flex-1 flex overflow-hidden">
 
-        {/* SIDEBAR */}
-        <aside className="w-[60px] bg-[#0a0a0a] border-r border-white/5 flex flex-col items-center py-4 gap-1 flex-shrink-0 z-50">
-          {navTabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                if (tab.id === 'chat') setHasMention(false);
-              }}
-              title={tab.label}
-              className={`relative w-10 h-10 flex items-center justify-center rounded-lg transition-all group
-                ${activeTab === tab.id
-                  ? 'bg-[#00ff95]/15 text-[#00ff95]'
-                  : 'text-white/25 hover:text-white/70 hover:bg-white/5'
-                }`}
-            >
-              {tab.showDot && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 flex">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                </span>
-              )}
-              {tab.icon}
-              {/* Tooltip */}
-              <span className="absolute left-14 bg-[#1a1a1a] border border-white/10 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[999]">
-                {tab.label}
-              </span>
-            </button>
-          ))}
-
-          {/* Разделитель */}
-          <div className="flex-1" />
-
-         {/* Аватар текущего игрока */}
+    {/* SIDEBAR */}
+    <aside className="w-[60px] border-r flex flex-col items-center py-4 gap-1 flex-shrink-0 z-50"
+           style={{ backgroundColor: 'var(--color-bg-subtle)', borderColor: 'var(--color-border)' }}>
+      {navTabs.map(tab => (
         <button
-          onClick={() => setActiveTab('profile')}
-          className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 hover:border-[#1bd96a]/50 transition-all mb-1"
-          title={nickname || 'Профиль'}
+          key={tab.id}
+          onClick={() => {
+            setActiveTab(tab.id);
+            if (tab.id === 'chat') setHasMention(false);
+          }}
+          title={tab.label}
+          className={`relative w-10 h-10 flex items-center justify-center rounded-lg transition-all group
+            ${activeTab === tab.id
+              ? 'bg-[var(--color-brand-dim)] text-[var(--color-brand)]'
+              : 'opacity-30 hover:opacity-100 hover:bg-[var(--color-bg-elevated)]'
+            }`}
         >
-          {nickname && nickname.trim() !== '' ? (
-            <SkinHead
-              nickname={nickname}
-              provider={activeAccount.provider !== 'offline' ? activeAccount.provider : undefined}
-              size={32}
-              className="w-full h-full"
-            />
-          ) : (
-            <div className="w-full h-full bg-white/[0.05] flex items-center justify-center">
-              <svg className="w-4 h-4 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
+          {tab.showDot && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 flex">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            </span>
           )}
+          {tab.icon}
+          {/* Tooltip */}
+          <span className="absolute left-14 border text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[999] shadow-xl"
+                style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
+            {tab.label}
+          </span>
         </button>
-        </aside>
+      ))}
 
-        {/* КОНТЕНТ */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="flex-1" />
 
-          {/* Фон только для play */}
-          {activeTab === 'play' && (
-            <div className="absolute inset-0 z-0">
-              <BackgroundCarousel images={bgImages} interval={10000} />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a]/80 via-transparent to-transparent" />
-            </div>
-          )}
-
-          {/* Контент вкладок */}
-          <div className="flex-1 relative z-10 overflow-hidden">
-
-            {activeTab === 'play' && (
-              <div className="h-full flex">
-                <div className="flex-1" />
-                <div className="w-[520px] h-full flex flex-col items-center justify-start p-5 animate-in fade-in slide-in-from-right-5 duration-300">
-                  <div className="w-full backdrop-blur-md bg-black/20 border border-white/10 shadow-2xl overflow-hidden">
-                    <ServerList />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'profile' && (
-              <div className="h-full flex justify-center items-center p-8 animate-in zoom-in-95 duration-300 bg-[#0f0f0f]">
-                <ProfilePage account={activeAccount} />
-              </div>
-            )}
-
-            {activeTab === 'chat' && (
-              <div className="h-full flex flex-col bg-[#0f0f0f] animate-in fade-in duration-200">
-                <div className="px-6 py-4 border-b border-white/5">
-                  <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-white/50">Глобальный чат</h2>
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <GlobalChat currentUser={nickname} isChatOpen={true} onMention={() => {}} />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'settings' && (
-              <div className="h-full flex justify-center items-center p-8 animate-in zoom-in-95 duration-300 bg-[#0f0f0f]">
-                <SettingsPage />
-              </div>
-            )}
-
-            {activeTab === 'auth' && (
-              <div className="h-full flex justify-center items-center p-8 animate-in zoom-in-95 duration-300 bg-[#0f0f0f]">
-                <AuthPage onLoginSuccess={handleLoginSuccess} />
-              </div>
-            )}
-
-            {activeTab === 'content' && (
-              <div className="h-full bg-[#0f0f0f]">
-                <ContentPage />
-              </div>
-            )}
+      {/* Аватар текущего игрока */}
+      <button
+        onClick={() => setActiveTab('profile')}
+        className="w-8 h-8 rounded-lg overflow-hidden border transition-all mb-1 active:scale-90"
+        style={{ borderColor: activeTab === 'profile' ? 'var(--color-brand)' : 'var(--color-border)' }}
+        title={nickname || 'Профиль'}
+      >
+        {nickname && nickname.trim() !== '' ? (
+          <SkinHead
+            nickname={nickname}
+            provider={activeAccount.provider !== 'offline' ? activeAccount.provider : undefined}
+            size={32}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center opacity-20" style={{ backgroundColor: 'var(--color-text)' }}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
           </div>
+        )}
+      </button>
+    </aside>
 
-          {/* FOOTER */}
-          {/* FOOTER */}
-          <LaunchProgress progress={progress} statusText={statusText} />
-            <Footer
-              nickname={nickname}
-              setNickname={setNickname}
-              onSelectAccount={handleSelectAccount}
-              onTabChange={(tab) => setActiveTab(tab as Tab)}
-              progress={progress}
-              versions={versions} // ПЕРЕДАЕМ НАПРЯМУЮ versions
-              selectedVersion={selectedVersion}
-              setSelectedVersion={setSelectedVersion}
-              isDownloaded={isDownloaded ?? false}
-              isLaunching={isLaunching ?? false}
-              handleLaunch={handleLaunch}
-              handleResetVersion={handleResetVersion}
-              openFolder={openFolder}
-            />
+    {/* КОНТЕНТ */}
+    <div className="flex-1 flex flex-col overflow-hidden relative">
+
+      {/* Фон только для play */}
+      {activeTab === 'play' && (
+        <div className="absolute inset-0 z-0">
+          <BackgroundCarousel images={bgImages} interval={10000} />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-transparent" />
         </div>
+      )}
+
+      {/* Контент вкладок */}
+      <div className="flex-1 relative z-10 overflow-hidden">
+
+        {activeTab === 'play' && (
+  <div className="h-full flex">
+    {/* Пустое пространство слева, чтобы арт было видно */}
+    <div className="flex-1" />
+
+    {/* Контейнер списка серверов */}
+    <div className="w-[440px] h-full flex flex-col items-center justify-start p-5 pt-10 animate-in fade-in slide-in-from-right-5 duration-500">
+      
+      {/* Удаляем overflow-hidden, чтобы кнопка "Играть" могла вылетать влево.
+          Удаляем жесткий фон, так как он теперь внутри ServerList и его айтемов.
+      */}
+      <div className="w-full relative">
+        <ServerList />
       </div>
+
     </div>
+  </div>
+)}
+
+        {/* Универсальная обертка для страниц (Profile, Settings, Auth, Content) */}
+        {['profile', 'settings', 'auth', 'content'].includes(activeTab) && (
+          <div className="h-full flex justify-center items-center p-8 animate-in zoom-in-95 duration-300"
+               style={{ backgroundColor: 'var(--color-bg)' }}>
+            {activeTab === 'profile' && <ProfilePage account={activeAccount} onGoToAuth={() => setActiveTab('auth')} />}
+            {activeTab === 'settings' && <SettingsPage />}
+            {activeTab === 'auth' && <AuthPage onLoginSuccess={handleLoginSuccess} />}
+            {activeTab === 'content' && <ContentPage nickname={nickname} />}
+          </div>
+        )}
+
+        {activeTab === 'chat' && (
+          <div className="h-full flex flex-col animate-in fade-in duration-200" style={{ backgroundColor: 'var(--color-bg)' }}>
+            <div className="px-6 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+              <h2 className="text-[11px] font-black uppercase tracking-[0.3em] opacity-40">Глобальный чат</h2>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <GlobalChat currentUser={nickname} isChatOpen={true} onMention={() => {}} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* FOOTER */}
+      <LaunchProgress progress={progress} statusText={statusText} />
+      <Footer
+        nickname={nickname}
+        setNickname={setNickname}
+        onSelectAccount={handleSelectAccount}
+        onTabChange={(tab) => setActiveTab(tab as Tab)}
+        progress={progress}
+        versions={versions}
+        selectedVersion={selectedVersion}
+        setSelectedVersion={setSelectedVersion}
+        isDownloaded={isDownloaded ?? false}
+        isLaunching={isLaunching ?? false}
+        handleLaunch={handleLaunch}
+        handleResetVersion={handleResetVersion}
+        openFolder={openFolder}
+      />
+    </div>
+  </div>
+</div>
   );
 }
 

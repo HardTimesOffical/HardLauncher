@@ -36,7 +36,8 @@ const Footer: React.FC<FooterProps> = ({
   openFolder
 }) => {
   return (
-    <footer className="relative z-50 flex-shrink-0 bg-[#0a0a0a] border-t border-white/[0.06]">
+    // Используем overlay для футера, чтобы он был чуть темнее/отличался от основного фона
+    <footer className="relative z-50 flex-shrink-0 bg-[var(--color-bg-overlay)] border-t border-[var(--color-border)] transition-colors duration-300">
       
       {/* Основная строка футера */}
       <div className="h-16 flex items-center px-4 gap-3">
@@ -51,23 +52,25 @@ const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* РАЗДЕЛИТЕЛЬ */}
-        <div className="w-px h-8 bg-white/[0.06] flex-shrink-0" />
+        <div className="w-px h-8 bg-[var(--color-border)] flex-shrink-0" />
 
         {/* ВЕРСИЯ */}
         <div className="flex flex-col gap-0.5 flex-shrink-0">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-[9px] uppercase font-bold text-white/20 tracking-[0.2em]">Версия</span>
+            <span className="text-[9px] uppercase font-bold text-[var(--color-text-dim)] tracking-[0.2em] opacity-50">
+              Версия
+            </span>
             {selectedVersion && !progress && (
               <button
                 onClick={handleResetVersion}
-                className="text-[8px] text-white/15 hover:text-orange-400 uppercase tracking-tight transition-colors"
+                className="text-[8px] text-[var(--color-text-dim)] hover:text-orange-400 uppercase tracking-tight transition-colors opacity-40 hover:opacity-100"
               >
                 Переустановить
               </button>
             )}
           </div>
             <VersionSelect 
-              versions={versions} // Было filteredVersions (ошибка)
+              versions={versions} 
               selected={selectedVersion} 
               onSelect={setSelectedVersion}
               disabled={isLaunching}
@@ -75,13 +78,13 @@ const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* РАЗДЕЛИТЕЛЬ */}
-        <div className="w-px h-8 bg-white/[0.06] flex-shrink-0" />
+        <div className="w-px h-8 bg-[var(--color-border)] flex-shrink-0" />
 
         {/* ПАПКА */}
         <button
           onClick={openFolder}
           title="Открыть папку игры"
-          className="w-9 h-9 flex items-center justify-center rounded-lg bg-white/[0.03] border border-white/[0.06] text-white/25 hover:text-white/60 hover:bg-white/[0.06] hover:border-white/10 transition-all flex-shrink-0"
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--color-bg-subtle)] border border-[var(--color-border)] text-[var(--color-text-dim)] hover:text-[var(--color-brand)] hover:bg-[var(--color-brand-dim)] hover:border-[var(--color-brand)]/20 transition-all flex-shrink-0"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -90,8 +93,12 @@ const Footer: React.FC<FooterProps> = ({
 
         {/* ВЕРСИЯ ИНДИКАТОР */}
         <div className="flex flex-col flex-shrink-0">
-          <span className="text-[9px] text-white/40 leading-none">{selectedVersion || '—'}</span>
-          <span className="text-[8px] text-white/15 uppercase tracking-tight">linked</span>
+          <span className="text-[9px] text-[var(--color-text)] opacity-60 leading-none font-bold tabular-nums">
+            {selectedVersion || '—'}
+          </span>
+          <span className="text-[8px] text-[var(--color-text-dim)] uppercase tracking-tight opacity-30">
+            linked
+          </span>
         </div>
 
         {/* SPACER */}

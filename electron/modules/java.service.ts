@@ -3,14 +3,23 @@ import fs from 'node:fs';
 import https from 'node:https';
 import decompress from 'decompress';
 
-export function getJavaVersionNeeded(version: string): number {
-  const v = version.match(/(\d+\.\d+)/)?.[0];
-  const vFloat = parseFloat(v || "1.21");
-  if (vFloat >= 1.20) return 21;
-  if (vFloat >= 1.17) return 17;
+export function getJavaVersionNeeded(mcVersion: string): number {
+  const parts = mcVersion.split('.').map(Number);
+  const minor = parts[1] || 0;
+  const patch = parts[2] || 0;
+
+  // 1.21+ → Java 21
+  if (minor >= 21) return 21;
+
+  // 1.20.5+ → Java 21
+  if (minor === 20 && patch >= 5) return 21;
+
+  // 1.17 - 1.20.4 → Java 17
+  if (minor >= 17) return 17;
+
+  // Старые → Java 8
   return 8;
 }
-
 // 1. Добавляем gamePath в аргументы
 export const findJavaExecutable = (version: string, gamePath: string): string | null => {
   // Теперь используем переданный gamePath вместо ROOT_DIR

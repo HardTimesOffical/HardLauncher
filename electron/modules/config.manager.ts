@@ -9,10 +9,11 @@ const DEFAULT_GAME_PATH = path.join(app.getPath('appData'), '.hard-monitoring');
 
 const defaultConfig = {
   ram: 4,
+  theme: 'dark', // Добавляем тему по умолчанию
   gamePath: DEFAULT_GAME_PATH,
   lastNickname: '',   
   lastVersion: '',
-  versionFilters: { // Добавь это сюда!
+  versionFilters: {
     showRelease: true,
     showFabric: true,
     showOld: false

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import SkinHead from './SkinHead';
 
 interface Account {
   nickname: string;
@@ -76,7 +75,6 @@ const AccountManager: React.FC<AccountManagerProps> = ({ currentNickname, onSele
     ? accounts.find(a => a.nickname === selected.nickname && a.provider === selected.provider)
     : null;
 
-  const isOnline = !!selectedAccount?.token && !isOfflineMode;
 
   const handleSelectAccount = (acc: Account) => {
     setSelected({ nickname: acc.nickname, provider: acc.provider });
@@ -116,12 +114,12 @@ const AccountManager: React.FC<AccountManagerProps> = ({ currentNickname, onSele
   };
 
   return (
-    <div className="flex flex-col gap-1 relative z-[100] w-full">
-      <span className="text-[8px] uppercase font-bold text-white/20 tracking-[0.2em] ml-1">Аккаунт</span>
+<div className="flex flex-col gap-1 relative z-[100] w-full">
+      <span className="text-[8px] uppercase font-bold tracking-[0.2em] ml-1 opacity-50" style={{ color: 'var(--color-text)' }}>
+        Аккаунт
+      </span>
 
       <div className="flex items-center gap-1.5 h-9">
-        
-        {/* Инпут — офлайн или отображение выбранного */}
         <div className="relative flex-1 h-full">
           {isOfflineMode ? (
             <input
@@ -129,67 +127,53 @@ const AccountManager: React.FC<AccountManagerProps> = ({ currentNickname, onSele
               value={offlineInput}
               onChange={(e) => handleOfflineInput(e.target.value)}
               placeholder="Введите никнейм..."
-              className="w-full h-full bg-white/[0.02] border border-white/10 rounded-lg px-3 text-[11px] text-white focus:outline-none focus:border-white/20 transition-all placeholder:text-white/15"
+              className="w-full h-full bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-lg px-3 text-[11px] focus:outline-none focus:border-[var(--color-brand)] transition-all placeholder:opacity-30"
+              style={{ color: 'var(--color-text)' }}
             />
           ) : (
             <div
-              className={`w-full h-full flex items-center gap-2 px-3 rounded-lg border transition-all cursor-pointer
-                ${isOnline
-                  ? 'bg-[#1bd96a]/5 border-[#1bd96a]/20'
-                  : 'bg-white/[0.02] border-white/10'
-                }`}
+              className="w-full h-full flex items-center justify-between gap-3 px-3 rounded-lg border transition-all cursor-pointer hover:bg-[var(--color-bg-subtle)]"
+              style={{ 
+                backgroundColor: 'var(--color-bg-subtle)',
+                borderColor:'var(--color-border)'
+              }}
               onClick={() => { loadAccounts(); setIsOpen(!isOpen); }}
             >
-              {selectedAccount ? (
-                <>
-                  <SkinHead
-                    nickname={selectedAccount.nickname}
-                    provider={selectedAccount.provider}
-                    size={20}
-                    className="rounded"
-                  />
-                  <span className="text-[11px] text-white/80 flex-1 truncate">{selectedAccount.nickname}</span>
-                  <ProviderBadge provider={selectedAccount.provider} />
-                </>
-              ) : (
-                <span className="text-[11px] text-white/20">Выберите аккаунт...</span>
-              )}
+              <span className="text-[11px] truncate font-medium" style={{ color: 'var(--color-text)' }}>
+                {selectedAccount ? selectedAccount.nickname : 'Выберите аккаунт...'}
+              </span>
+              {selectedAccount && <ProviderBadge provider={selectedAccount.provider} />}
             </div>
-          )}
-
-          {/* Онлайн индикатор */}
-          {!isOfflineMode && (
-            <div className={`absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full flex-shrink-0
-              ${isOnline ? 'bg-[#1bd96a] shadow-[0_0_6px_#1bd96a]' : 'bg-white/15'}`}
-            />
           )}
         </div>
 
-        {/* Кнопка открытия дропдауна */}
         <button
           onClick={() => { loadAccounts(); setIsOpen(!isOpen); }}
-          className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-all flex-shrink-0
-            ${isOpen
-              ? 'bg-[#1bd96a]/15 border-[#1bd96a]/30 text-[#1bd96a]'
-              : 'bg-white/[0.03] border-white/[0.06] text-white/30 hover:text-white/60 hover:bg-white/[0.06]'
-            }`}
+          className="w-9 h-9 flex items-center justify-center rounded-lg border transition-all flex-shrink-0"
+          style={{ 
+            backgroundColor: isOpen ? 'var(--color-brand-dim)' : 'var(--color-bg-subtle)',
+            borderColor: isOpen ? 'var(--color-brand)' : 'var(--color-border)',
+            color: isOpen ? 'var(--color-brand)' : 'var(--color-text)'
+          }}
         >
           <svg className={`w-3 h-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
       </div>
 
-      {/* Дропдаун */}
       {isOpen && (
-        <div className="absolute bottom-12 left-0 w-full min-w-[220px] bg-[#111] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden z-[200] animate-fade-in">
+        <div className="absolute bottom-12 left-0 w-full min-w-[220px] border rounded-xl shadow-2xl overflow-hidden z-[200] animate-fade-in"
+          style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}>
           
-          {/* Список аккаунтов */}
-          <div className="max-h-48 overflow-y-auto">
+          <div className="max-h-48 overflow-y-auto custom-scrollbar">
             {accounts.length > 0 ? (
               <>
-                <div className="px-3 pt-2 pb-1">
-                  <span className="text-[8px] uppercase text-white/20 tracking-widest">Сохранённые аккаунты</span>
+                <div className="px-3 pt-3 pb-1">
+                  {/* Исправлен контраст заголовка */}
+                  <span className="text-[9px] uppercase font-black tracking-widest opacity-60" style={{ color: 'var(--color-text)' }}>
+                    Сохранённые аккаунты
+                  </span>
                 </div>
                 {accounts.map((acc, index) => {
                   const isActive = selected?.nickname === acc.nickname && selected?.provider === acc.provider;
@@ -197,23 +181,17 @@ const AccountManager: React.FC<AccountManagerProps> = ({ currentNickname, onSele
                     <div
                       key={`${acc.nickname}-${acc.provider}-${index}`}
                       onClick={() => handleSelectAccount(acc)}
-                      className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer transition-colors
-                        ${isActive ? 'bg-[#1bd96a]/10' : 'hover:bg-white/[0.04]'}`}
+                      className="flex items-center justify-between gap-4 px-3 py-2.5 cursor-pointer transition-colors"
+                      style={{ backgroundColor: isActive ? 'var(--color-brand-dim)' : 'transparent' }}
                     >
-                      <SkinHead
-                        nickname={acc.nickname}
-                        provider={acc.provider}
-                        size={24}
-                        className="rounded"
-                      />
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <span className={`text-[11px] truncate ${isActive ? 'text-[#1bd96a]' : 'text-white/70'}`}>
+                      <div className="flex flex-col flex-1 min-w-0 gap-0.5">
+                        <span className="text-[11px] truncate font-bold" style={{ color: isActive ? 'var(--color-brand)' : 'var(--color-text)' }}>
                           {acc.nickname}
                         </span>
                         <ProviderBadge provider={acc.provider} />
                       </div>
                       {isActive && (
-                        <svg className="w-3 h-3 text-[#1bd96a] flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-brand)' }} fill="currentColor" viewBox="0 0 24 24">
                           <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                         </svg>
                       )}
@@ -222,30 +200,31 @@ const AccountManager: React.FC<AccountManagerProps> = ({ currentNickname, onSele
                 })}
               </>
             ) : (
-              <div className="py-6 text-center text-[9px] text-white/20 uppercase tracking-widest">
+              <div className="py-8 text-center text-[10px] font-bold uppercase tracking-widest opacity-30" style={{ color: 'var(--color-text)' }}>
                 Нет аккаунтов
               </div>
             )}
           </div>
 
-          {/* Разделитель */}
-          <div className="border-t border-white/[0.06] mx-2" />
+          <div className="border-t mx-2" style={{ borderColor: 'var(--color-border)' }} />
 
-          {/* Офлайн режим */}
-          <div className="p-2 flex flex-col gap-1">
-            <button
-              onClick={handleOfflineMode}
-              className={`w-full py-2 px-3 rounded-lg text-[9px] uppercase font-bold tracking-wider transition-all text-left
-                ${isOfflineMode
-                  ? 'bg-white/[0.06] text-white/60'
-                  : 'text-white/25 hover:text-white/50 hover:bg-white/[0.03]'
-                }`}
-            >
-              {isOfflineMode ? '← Ввод никнейма (офлайн)' : 'Войти без аккаунта'}
-            </button>
+          <div className="p-2 flex flex-col gap-1.5">
+            {!isOfflineMode && (
+              <button
+                onClick={handleOfflineMode}
+                className="w-full py-2.5 px-3 rounded-lg text-[9px] uppercase font-black tracking-wider transition-all text-left hover:bg-[var(--color-bg-subtle)]"
+                style={{ color: 'var(--color-text-dim)' }}
+              >
+                Войти без аккаунта
+              </button>
+            )}
             <button
               onClick={() => { onOpenAuth(); setIsOpen(false); }}
-              className="w-full py-2 px-3 rounded-lg bg-[#1bd96a]/90 hover:bg-[#1bd96a] text-black text-[9px] font-black uppercase tracking-wider transition-all"
+              className="w-full py-2.5 px-3 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-[0.98] shadow-sm"
+              style={{ 
+                backgroundColor: 'var(--color-brand)', 
+                color: '#fff' 
+              }}
             >
               + Добавить аккаунт
             </button>

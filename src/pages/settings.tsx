@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import PathInput from '../components/settings/PathInput';
 import RamSlider from '../components/settings/RamSlider';
+import { TabButton } from '../components/settings/TabButton';
+import { AppearanceSettings } from '../components/settings/AppearanceSettings';
+
+export type ThemeType = 'dark' | 'light' | 'emerald' | 'ruby' | 'ocean';
 
 interface VersionFilters {
   showRelease: boolean;
@@ -9,184 +13,141 @@ interface VersionFilters {
 }
 
 function Settings() {
+  const [activeTab, setActiveTab] = useState<'general' | 'appearance'>('general');
   const [ram, setRam] = useState(4);
   const [gamePath, setGamePath] = useState('');
+  const [theme, setTheme] = useState<ThemeType>('dark');
   const [isSaved, setIsSaved] = useState(false);
   const [filters, setFilters] = useState<VersionFilters>({
-    showRelease: true,
-    showFabric: true,
-    showOld: false,
+    showRelease: true, showFabric: true, showOld: false
   });
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const config = await window.ipcRenderer.invoke('get-settings');
-        if (config) {
-          setRam(config.ram || 4);
-          setGamePath(config.gamePath || '');
-          if (config.versionFilters) setFilters(config.versionFilters);
-        }
-      } catch (err) {
-        console.error('Failed to load settings:', err);
+    window.ipcRenderer.invoke('get-settings').then(config => {
+      if (config) {
+        setRam(config.ram || 4);
+        setGamePath(config.gamePath || '');
+        setTheme(config.theme || 'dark');
+        if (config.versionFilters) setFilters(config.versionFilters);
       }
-    };
-    loadData();
+    });
   }, []);
 
-  const handleSelectPath = async () => {
-    try {
-      const newPath = await window.ipcRenderer.invoke('select-directory');
-      if (newPath) setGamePath(newPath);
-    } catch (err) {
-      console.error('Directory selection error:', err);
-    }
-  };
-
   const handleSave = async () => {
-    try {
-      const result = await window.ipcRenderer.invoke('save-settings', {
-        ram, 
-        gamePath, 
-        versionFilters: filters,
-      });
-      
-      if (result.success) {
-        setIsSaved(true);
-        // Теперь бэкенд (ConfigManager) сам отправит 'filters-changed'
-        // Главный экран его поймает и обновит список.
-        setTimeout(() => setIsSaved(false), 2000);
-      }
-    } catch {
-      alert('Ошибка при сохранении');
+    const result = await window.ipcRenderer.invoke('save-settings', {
+      ram, gamePath, theme, versionFilters: filters
+    });
+    if (result.success) {
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
     }
   };
 
-  
+  const handleThemeChange = (newTheme: ThemeType) => {
+    setTheme(newTheme);
+    document.body.setAttribute('data-theme', newTheme);
+  };
 
-  const handleResetToDefault = async () => {
-    if (confirm('Сбросить все настройки до стандартных?')) {
-      try {
-        const defaults = await window.ipcRenderer.invoke('get-default-settings');
-        setRam(defaults.ram);
-        setGamePath(defaults.gamePath);
-        setFilters({ showRelease: true, showFabric: true, showOld: false });
-        setIsSaved(true);
-        await window.ipcRenderer.invoke('get-versions');
-        setTimeout(() => setIsSaved(false), 2000);
-      } catch (err) {
-        console.error('Reset error:', err);
-      }
+  // Цвета для индикаторов типов версий
+  const getFilterColor = (key: string) => {
+    switch(key) {
+      case 'showRelease': return 'var(--color-brand)'; // Голубой/Зеленый
+      case 'showFabric':  return '#ffd700';           // Золотой (Fabric)
+      case 'showOld':     return '#ff4757';           // Красный (Old)
+      default:            return 'var(--color-brand)';
     }
   };
-
-  const toggleFilter = (key: keyof VersionFilters) => {
-    setFilters(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const filterOptions: { key: keyof VersionFilters; label: string; desc: string; labelClass: string }[] = [
-    { key: 'showRelease', label: 'Релизы', desc: 'Vanilla (1.x.x)', labelClass: 'text-white/60' },
-    { key: 'showFabric', label: 'Моды', desc: 'Fabric / Forge версии', labelClass: 'text-yellow-400/80' },
-    { key: 'showOld', label: 'Старые', desc: 'Ниже 1.13', labelClass: 'text-white/35' },
-  ];
 
   return (
     <div className="w-full max-w-2xl animate-scale-in">
-      <div className="bg-[#111] border border-white/[0.06] rounded-2xl overflow-hidden shadow-2xl">
-
-        {/* HEADER */}
-        <div className="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between">
-          <div>
-            <h2 className="text-[13px] font-bold text-white">Настройки</h2>
-            <p className="text-[9px] text-white/25 mt-0.5">Конфигурация игрового окружения</p>
+      <div className="bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-2xl transition-all duration-300">
+        
+        {/* TABS HEADER */}
+        <div className="px-6 pt-5 border-b border-[var(--color-border)] flex items-center justify-between">
+          <div className="flex gap-6">
+            <TabButton 
+              label="Настройки" 
+              active={activeTab === 'general'} 
+              onClick={() => setActiveTab('general')} 
+            />
+            <TabButton 
+              label="Оформление" 
+              active={activeTab === 'appearance'} 
+              onClick={() => setActiveTab('appearance')} 
+            />
           </div>
+          <p className="text-[9px] text-[var(--color-text-dim)] mb-2 uppercase tracking-tighter">Launcher v1.0</p>
         </div>
 
-        {/* BODY — двухколоночный грид */}
-        <div className="p-5 grid grid-cols-2 gap-5">
-
-          {/* Левая колонка */}
-          <div className="flex flex-col gap-4">
-
-            {/* RAM */}
-            <section>
-              <p className="text-[8px] uppercase font-bold text-white/20 tracking-widest mb-2">Память (RAM)</p>
-              <RamSlider value={ram} onChange={setRam} />
-            </section>
-
-            {/* PATH */}
-            <section className="border-t border-white/[0.05] pt-4">
-              <p className="text-[8px] uppercase font-bold text-white/20 tracking-widest mb-2">Директория игры</p>
-              <PathInput label="Папка установки" value={gamePath} onSelect={handleSelectPath} />
-              <p className="text-[8px] text-white/15 mt-1.5">
-                Версии и ассеты сохраняются сюда
-              </p>
-            </section>
-          </div>
-
-          {/* Правая колонка */}
-          <div className="flex flex-col gap-4">
-            <section>
-              <p className="text-[8px] uppercase font-bold text-white/20 tracking-widest mb-2">Отображение версий</p>
-              <div className="flex flex-col gap-1.5">
-                {filterOptions.map(opt => (
-                  <div
-                    key={opt.key}
-                    onClick={() => toggleFilter(opt.key)}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl border cursor-pointer transition-all
-                      ${filters[opt.key]
-                        ? 'bg-white/[0.04] border-white/[0.08]'
-                        : 'bg-transparent border-white/[0.03] opacity-40'
-                      }`}
-                  >
-                    <div className="flex flex-col">
-                      <span className={`text-[11px] font-semibold ${opt.labelClass}`}>
-                        {opt.label}
-                      </span>
-                      <span className="text-[8px] text-white/20">{opt.desc}</span>
-                    </div>
-
-                    {/* Toggle */}
-                    <div className={`w-8 h-4 rounded-full border transition-all relative flex-shrink-0
-                      ${filters[opt.key]
-                        ? 'bg-[#1bd96a]/20 border-[#1bd96a]/30'
-                        : 'bg-white/[0.03] border-white/[0.08]'
-                      }`}
-                    >
-                      <div className={`absolute top-0.5 w-3 h-3 rounded-full transition-all
-                        ${filters[opt.key]
-                          ? 'left-[17px] bg-[#1bd96a]'
-                          : 'left-0.5 bg-white/20'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                ))}
+        {/* CONTENT */}
+        <div className="p-6 min-h-[340px]">
+          {activeTab === 'general' ? (
+            <div className="grid grid-cols-2 gap-8 animate-fade-in"> {/* Добавлена анимация */}
+              <div className="space-y-6">
+                <section>
+                  <p className="text-[8px] uppercase font-bold text-[var(--color-text-dim)] tracking-widest mb-3">Ресурсы</p>
+                  <RamSlider value={ram} onChange={setRam} />
+                </section>
+                <section>
+                  <p className="text-[8px] uppercase font-bold text-[var(--color-text-dim)] tracking-widest mb-3">Пути</p>
+                  <PathInput label="Путь к .minecraft" value={gamePath} onSelect={() => {}} />
+                </section>
               </div>
-            </section>
-          </div>
+              
+              <div className="space-y-3">
+                <p className="text-[8px] uppercase font-bold text-[var(--color-text-dim)] tracking-widest mb-1">Фильтры версий</p>
+                {Object.keys(filters).map((key) => {
+                  const isActive = filters[key as keyof VersionFilters];
+                  const accentColor = getFilterColor(key);
+                  
+                  return (
+                    <div 
+                      key={key}
+                      onClick={() => setFilters({...filters, [key as keyof VersionFilters]: !isActive})}
+                      className="group p-3 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl flex justify-between items-center cursor-pointer hover:border-[var(--color-text-dim)]/30 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Иконка-индикатор типа */}
+                        <div 
+                          className="w-1.5 h-1.5 rounded-full" 
+                          style={{ backgroundColor: isActive ? accentColor : 'var(--color-text-dim)', opacity: isActive ? 1 : 0.3 }}
+                        />
+                        <span className={`text-[10px] uppercase font-bold tracking-tight transition-colors ${isActive ? 'text-[var(--color-text)]' : 'text-[var(--color-text-dim)]'}`}>
+                          {key.replace('show', '')}
+                        </span>
+                      </div>
+                      
+                      {/* Кастомный переключатель (Toggle) */}
+                      <div className={`w-7 h-4 rounded-full p-1 transition-all duration-300 ${isActive ? '' : 'bg-black/20'}`}
+                           style={{ backgroundColor: isActive ? accentColor : '' }}>
+                        <div className={`w-2 h-2 bg-white rounded-full transition-transform duration-300 ${isActive ? 'translate-x-3' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="animate-fade-in">
+              <AppearanceSettings currentTheme={theme} onThemeChange={handleThemeChange} />
+            </div>
+          )}
         </div>
 
         {/* FOOTER */}
-        <div className="px-5 py-3 border-t border-white/[0.06] flex items-center gap-2">
-          <div className="flex-1">
+        <div className="px-6 py-4 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-bg-overlay)]/50">
+          <div className="h-4">
             {isSaved && (
-              <span className="text-[9px] text-[#1bd96a] font-bold uppercase tracking-wider">
+              <span className="text-[9px] text-[var(--color-brand)] font-bold uppercase tracking-widest animate-fade-in">
                 ✓ Сохранено
               </span>
             )}
           </div>
           <button
-            onClick={handleResetToDefault}
-            className="px-3 py-1.5 rounded-lg text-[8px] font-bold uppercase tracking-wider text-white/25 border border-white/[0.05] hover:text-white/50 hover:bg-white/[0.03] transition-all"
-          >
-            По умолчанию
-          </button>
-          <button
             onClick={handleSave}
-            className="px-5 py-1.5 rounded-lg text-[8px] font-bold uppercase tracking-wider bg-[#1bd96a]/15 text-[#1bd96a] border border-[#1bd96a]/25 hover:bg-[#1bd96a]/25 transition-all"
+            className="px-8 py-2 rounded-lg text-[9px] font-black uppercase tracking-tighter bg-[var(--color-brand)] text-[var(--color-bg)] hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-[var(--color-brand)]/10"
           >
-            Сохранить
+            Применить изменения
           </button>
         </div>
       </div>
