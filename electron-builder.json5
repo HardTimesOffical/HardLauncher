@@ -4,6 +4,7 @@
   "appId": "YourAppID",
   "asar": true,
   "productName": "hlauncher",
+  "afterPack": "./scripts/obfuscate.js"
   "directories": {
     "output": "release/${version}"
   },

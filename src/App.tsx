@@ -28,11 +28,11 @@ interface ProgressData {
 
 interface ActiveAccount {
   nickname: string;
-  provider: 'internal' | 'ely' | 'offline';
+  provider: 'internal' | 'ely' | 'offline' | 'microsoft';
   token?: string;
 }
 
-type AuthProvider = 'internal' | 'ely';
+type AuthProvider = 'internal' | 'ely' | 'microsoft'; // ← добавь microsoft
 type Tab = 'play' | 'profile' | 'settings' | 'auth' | 'chat' | 'content';
 
 // Иконки для sidebar
@@ -250,27 +250,29 @@ useEffect(() => {
     };
   }, [stopLaunching]);
 
-  const handleLoginSuccess = (name: string, provider: AuthProvider, token?: string) => {
+    const handleLoginSuccess = (name: string, provider: 'internal' | 'ely' | 'microsoft', token?: string) => {
     setActiveAccount({ nickname: name, provider, token });
     setNickname(name);
-    setAuthProvider(provider);
+    if (provider !== 'microsoft') {
+      setAuthProvider(provider as 'internal' | 'ely');
+      localStorage.setItem('auth-provider', provider);
+    }
     if (token) setAuthToken(token);
-    localStorage.setItem('auth-provider', provider);
     setActiveTab('play');
   };
 
-  const handleSelectAccount = (name: string, hasToken: boolean, provider?: string) => {
-    setActiveAccount({
-      nickname: name,
-      provider: hasToken ? (provider as 'internal' | 'ely') : 'offline',
-      token: hasToken ? authToken || undefined : undefined
-    });
-    setNickname(name);
-    if (provider && hasToken) {
-      setAuthProvider(provider as AuthProvider);
-      localStorage.setItem('auth-provider', provider);
-    }
-  };
+    const handleSelectAccount = (name: string, hasToken: boolean, provider?: string) => {
+      setActiveAccount({
+        nickname: name,
+        provider: hasToken ? (provider as 'internal' | 'ely' | 'microsoft') : 'offline',
+        token: hasToken ? authToken || undefined : undefined
+      });
+      setNickname(name);
+      if (provider && hasToken && provider !== 'microsoft') {
+        setAuthProvider(provider as 'internal' | 'ely');
+        localStorage.setItem('auth-provider', provider);
+      }
+    };
 
   const handleLaunch = () => {
     setIsLaunching(true);
@@ -416,7 +418,7 @@ useEffect(() => {
 
         {/* Универсальная обертка для страниц (Profile, Settings, Auth, Content) */}
         {['profile', 'settings', 'auth', 'content'].includes(activeTab) && (
-          <div className="h-full flex justify-center items-center p-8 animate-in zoom-in-95 duration-300"
+          <div className="h-full flex justify-center items-center animate-in zoom-in-95 duration-300"
                style={{ backgroundColor: 'var(--color-bg)' }}>
             {activeTab === 'profile' && <ProfilePage account={activeAccount} onGoToAuth={() => setActiveTab('auth')} />}
             {activeTab === 'settings' && <SettingsPage />}

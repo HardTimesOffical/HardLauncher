@@ -4,6 +4,26 @@ import { spawn } from 'node:child_process';
 
 const FORGE_MAVEN = 'https://maven.minecraftforge.net/net/minecraftforge/forge';
 
+function getForgeInstallerInfo(gameVersion: string, loaderVersion: string): { url: string; name: string } {
+  const parts = gameVersion.split('.');
+  const minor = parseInt(parts[1]);
+  const patch = parseInt(parts[2] || '0');
+
+  // 1.7.x - 1.11.x и 1.12.0, 1.12.1 — legacy формат с суффиксом версии игры
+  const isLegacy = minor < 12 || (minor === 12 && patch < 2);
+
+  if (isLegacy) {
+    const name = `forge-${gameVersion}-${loaderVersion}-${gameVersion}-installer.jar`;
+    const url = `${FORGE_MAVEN}/${gameVersion}-${loaderVersion}-${gameVersion}/${name}`;
+    return { url, name };
+  }
+
+  // 1.12.2+ — стандартный формат
+  const name = `forge-${gameVersion}-${loaderVersion}-installer.jar`;
+  const url = `${FORGE_MAVEN}/${gameVersion}-${loaderVersion}/${name}`;
+  return { url, name };
+}
+
 export async function installForge(
   gameVersion: string,
   loaderVersion: string,
@@ -23,9 +43,7 @@ export async function installForge(
 
   fs.mkdirSync(versionDir, { recursive: true });
 
-  // Скачиваем installer
-  const installerName = `forge-${gameVersion}-${loaderVersion}-installer.jar`;
-  const installerUrl = `${FORGE_MAVEN}/${gameVersion}-${loaderVersion}/${installerName}`;
+  const { url: installerUrl, name: installerName } = getForgeInstallerInfo(gameVersion, loaderVersion);
   const installerPath = path.join(gamePath, 'forge-installers', installerName);
 
   fs.mkdirSync(path.join(gamePath, 'forge-installers'), { recursive: true });
@@ -36,12 +54,11 @@ export async function installForge(
     await downloadFile(installerUrl, installerPath, webContents);
   }
 
-  // Запускаем installer в headless режиме
+  // Запускаем installer
   webContents.send('launch-status', `Установка Forge ${gameVersion}...`);
   await runForgeInstaller(installerPath, javaPath, gamePath, webContents);
 
-  // Forge installer создаёт папку с именем gameVersion-forgeVersion
-  // Ищем созданную папку
+  // Ищем созданную папку версии
   const forgeVersionId = findInstalledForgeId(gamePath, gameVersion);
   if (!forgeVersionId) {
     throw new Error(`Forge установлен но папка версии не найдена для ${gameVersion}`);
@@ -57,7 +74,9 @@ async function downloadFile(
   webContents: Electron.WebContents
 ): Promise<void> {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Ошибка загрузки Forge: ${response.status} ${url}`);
+  if (!response.ok) {
+    throw new Error(`Ошибка загрузки Forge: ${response.status} ${url}`);
+  }
 
   const total = Number(response.headers.get('content-length') || 0);
   let current = 0;
@@ -135,7 +154,6 @@ function findInstalledForgeId(gamePath: string, gameVersion: string): string | n
   if (!fs.existsSync(versionsDir)) return null;
 
   const dirs = fs.readdirSync(versionsDir);
-  // Forge создаёт папку типа "1.20.1-forge-47.3.12"
   const forgeDir = dirs.find(d =>
     d.startsWith(gameVersion) && d.toLowerCase().includes('forge')
   );

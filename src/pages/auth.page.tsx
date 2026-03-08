@@ -1,10 +1,10 @@
 import { useState } from 'react';
 
 interface AuthPageProps {
-  onLoginSuccess: (nickname: string, provider: 'internal' | 'ely', token?: string) => void;
+  onLoginSuccess: (nickname: string, provider: 'internal' | 'ely' | 'microsoft', token?: string) => void;
 }
 
-type AuthProvider = 'internal' | 'ely';
+type AuthProvider = 'internal' | 'ely' | 'microsoft';
 type AuthMode = 'login' | 'register';
 
 const AuthPage = ({ onLoginSuccess }: AuthPageProps) => {
@@ -15,6 +15,23 @@ const AuthPage = ({ onLoginSuccess }: AuthPageProps) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handleMicrosoftLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const result = await window.ipcRenderer.invoke('microsoft-auth');
+      if (result.success) {
+        onLoginSuccess(result.nickname, 'microsoft', result.accessToken);
+      } else {
+        setError(result.error || 'Ошибка входа через Microsoft');
+      }
+    } catch {
+      setError('Ошибка соединения');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     setError('');
@@ -121,10 +138,48 @@ const AuthPage = ({ onLoginSuccess }: AuthPageProps) => {
         >
           Ely.by
         </button>
+        <button
+          onClick={() => { setProvider('microsoft'); setError(''); }}
+          className={`flex-1 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg transition-all
+            ${provider === 'microsoft'
+              ? 'bg-[#0078d4]/15 text-[#4db3ff] border border-[#0078d4]/20'
+              : 'text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-border)]'
+            }`}
+        >
+          Microsoft
+        </button>
       </div>
 
       {/* Форма */}
       <div className="p-6 flex flex-col gap-3">
+
+        {provider === 'microsoft' && (
+  <div className="flex flex-col gap-3 py-2">
+    <div className="px-3 py-3 bg-[#0078d4]/10 border border-[#0078d4]/20 rounded-xl">
+      <p className="text-[10px] text-[#4db3ff] uppercase font-bold tracking-wider mb-1">
+        Вход через Microsoft
+      </p>
+      <p className="text-[9px] text-white/40 leading-relaxed">
+        Откроется браузер для входа в аккаунт Microsoft. Требуется лицензия Minecraft.
+      </p>
+    </div>
+    <button
+      onClick={handleMicrosoftLogin}
+      disabled={loading}
+      className="w-full py-3.5 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] transition-all active:scale-[0.98] disabled:opacity-40 bg-[#0078d4]/20 text-[#4db3ff] border border-[#0078d4]/30 hover:bg-[#0078d4]/30"
+    >
+      {loading ? (
+        <span className="flex items-center justify-center gap-2">
+          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+            <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          ОЖИДАНИЕ...
+        </span>
+      ) : 'Войти через Microsoft'}
+    </button>
+  </div>
+)}
 
         {/* Переключатель логин/регистрация для HardTimes */}
         {provider === 'internal' && (
@@ -220,6 +275,8 @@ const AuthPage = ({ onLoginSuccess }: AuthPageProps) => {
             </a>
           </p>
         )}
+
+        
       </div>
     </div>
   </div>

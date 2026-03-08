@@ -20,7 +20,7 @@ const TitleBar: React.FC = () => {
         
         {/* Статус: Используем янтарный, который хорошо сочетается с темными темами */}
         <span className="text-[7.5px] font-bold uppercase tracking-[0.15em] text-amber-500/90 italic select-none bg-amber-950/40 px-1.5 py-0.5 rounded-sm border border-amber-900/50">
-          В разработке v1.0.6
+          В разработке v1.0.8
         </span>
       </div>
 

@@ -32,10 +32,9 @@
    ROOT & BASE
    ===================== */
 :root {
-  /* Тёмная тема остается без изменений */
   --color-bg: #0f0f0f;
   --color-bg-elevated: #111111;
-  --color-bg-subtle: #161616; /* Чуть светлее основного фона */
+  --color-bg-subtle: #161616;
   --color-bg-overlay: #0a0a0a;
   --color-border: rgba(255, 255, 255, 0.06);
   --color-brand: #5da9ff;
@@ -45,19 +44,13 @@
 }
 
 [data-theme='light'] {
-  /* Основной фон — мягкий белый (не ослепляющий) */
-  --color-bg: #f8f9fa; 
-  /* Подложка контента — чистый белый */
+  --color-bg: #f8f9fa;
   --color-bg-elevated: #ffffff;
-  /* ТОТ САМЫЙ ЦВЕТ: сероватый для инпутов, неактивных вкладок и рамок */
-  --color-bg-subtle: #edf2f7; 
-  /* Глубокий серый для футеров или теней */
-  --color-bg-overlay: #e2e8f0; 
-  
+  --color-bg-subtle: #edf2f7;
+  --color-bg-overlay: #e2e8f0;
   --color-border: #cbd5e0;
   --color-brand: #3b82f6;
   --color-brand-dim: rgba(59, 130, 246, 0.1);
-  
   --color-text: #2d3748;
   --color-text-dim: #718096;
 }
@@ -72,10 +65,8 @@
   --color-brand-dim: rgba(255, 60, 60, 0.15);
   --color-text: #ffebeb;
   --color-text-dim: #946e6e;
-  --grad-accent: linear-gradient(135deg, #ff3c3c 0%, #700000 100%);
 }
 
-/* Cyberpunk (Неоновый фиолетовый/синий) */
 [data-theme='cyber'] {
   --color-bg: #0a0514;
   --color-bg-elevated: #120b24;
@@ -86,10 +77,8 @@
   --color-brand-dim: rgba(188, 19, 254, 0.2);
   --color-text: #f0e6ff;
   --color-text-dim: #8e7fb0;
-  --grad-accent: linear-gradient(135deg, #bc13fe 0%, #2575fc 100%);
 }
 
-/* Midnight Forest (Глубокий изумрудный) */
 [data-theme='forest'] {
   --color-bg: #040806;
   --color-bg-elevated: #08120e;
@@ -100,10 +89,8 @@
   --color-brand-dim: rgba(27, 217, 106, 0.15);
   --color-text: #eafff3;
   --color-text-dim: #6e947f;
-  --grad-accent: linear-gradient(135deg, #1bd96a 0%, #0a4d29 100%);
 }
 
-/* Amoled (Абсолютно черный для OLED) */
 [data-theme='amoled'] {
   --color-bg: #000000;
   --color-bg-elevated: #050505;
@@ -120,8 +107,6 @@
   box-sizing: border-box;
 }
 
-
-
 body {
   background: var(--color-bg);
   color: var(--color-text);
@@ -133,7 +118,7 @@ body {
 }
 
 /* =====================
-   SCROLLBAR
+   SCROLLBAR — тема-зависимый
    ===================== */
 ::-webkit-scrollbar {
   width: 3px;
@@ -145,20 +130,20 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-border);
   border-radius: 99px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(27, 217, 106, 0.3);
+  background: var(--color-brand-dim);
 }
 
 /* =====================
    SELECTION
    ===================== */
 ::selection {
-  background: rgba(27, 217, 106, 0.2);
-  color: #fff;
+  background: var(--color-brand-dim);
+  color: var(--color-text);
 }
 
 /* =====================
@@ -180,6 +165,16 @@ body {
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* animate-in / slide-in helpers (упрощённые) */
+@keyframes animateIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: animateIn 0.15s ease-out forwards;
+}
+
 .animate-pulse-fast {
   animation: progress-glow 1.5s infinite ease-in-out;
 }
@@ -195,14 +190,11 @@ body {
 /* =====================
    UTILITIES
    ===================== */
-
-/* Пиксельный рендеринг для скинов */
 .pixelated {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
 
-/* Стеклянная карточка */
 .glass {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--color-border);
@@ -210,20 +202,57 @@ body {
   -webkit-backdrop-filter: blur(12px);
 }
 
-/* Светящийся бренд-цвет */
 .glow-brand {
-  box-shadow: 0 0 12px rgba(27, 217, 106, 0.3);
+  box-shadow: 0 0 12px var(--color-brand-dim);
 }
 
 .text-glow-brand {
-  text-shadow: 0 0 8px rgba(27, 217, 106, 0.6);
+  text-shadow: 0 0 8px var(--color-brand-dim);
 }
 
-/* Minecraft шрифт как утилита */
 .font-mc {
   font-family: 'MinecraftSeven', monospace;
 }
 
 .font-mc-title {
   font-family: 'MinecraftTen', sans-serif;
+}
+
+/* =====================
+   NATIVE SELECT — скрыть стрелку
+   (на случай если где-то остались)
+   ===================== */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* =====================
+   SHIMMER — для прогресс-бара
+   ===================== */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.shimmer-bar {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.shimmer-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 50%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.8s ease-in-out infinite;
 }

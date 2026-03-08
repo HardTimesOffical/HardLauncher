@@ -5,6 +5,8 @@ import fs from 'node:fs'
 import { autoUpdater } from 'electron-updater'
 import gracefulFs from 'graceful-fs'
 import { IUser } from 'minecraft-launcher-core'
+import { Auth } from 'msmc';
+import { createHash } from 'node:crypto';
 
 import { isVersionDownloaded } from './modules/path.manager'
 import { getJavaVersionNeeded, ensureJava } from './modules/java.service'
@@ -21,10 +23,6 @@ import { installMod, removeMod, getInstalledMods } from './modules/mod.installer
 
 gracefulFs.gracefulify(fs)
 
-
-
-//
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 process.env.APP_ROOT = path.join(__dirname, '..')
@@ -37,15 +35,24 @@ let win: BrowserWindow | null = null
 // 1. АВТОРИЗАЦИЯ (Offline) - РЕШЕНИЕ ПРОБЛЕМ ТИПОВ
 // ======================================================
 // Изменяем аргументы: теперь принимаем данные из сохраненного аккаунта
+function offlineUUID(nickname: string): string {
+  const hash = createHash('md5').update(`OfflinePlayer:${nickname}`).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x30;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.toString('hex');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
+}
+
 function authMethod(nickname: string, uuid?: string, token?: string): IUser {
+  const resolvedUuid = uuid || offlineUUID(nickname);
   return {
-    access_token: token || "0",
-    client_token: uuid || "0",
-    uuid: uuid || "0",
+    access_token: token || resolvedUuid,
+    client_token: resolvedUuid,
+    uuid: resolvedUuid,
     name: nickname,
-    user_properties: {}, // Пустой объект вместо строки
+    user_properties: {},
     meta: {
-      type: "mojang",
+      type: "legacy" as any,
       demo: false
     }
   };
@@ -113,12 +120,16 @@ async function getFabricProfile(minecraftVersion: string, loaderVersion: string)
 }
 
 // ======================================================
-// 2. ФУНКЦИЯ А: ЗАПУСК ВАНИЛЛЫ (Через API Mojang
+// LAUNCH VANILLA
+// ======================================================
+// ======================================================
+// LAUNCH VANILLA
+// ======================================================
 async function launchVanilla(
-  versionId: string, 
-  nickname: string, 
-  webContents: Electron.WebContents, 
-  authServerUrl: string, 
+  versionId: string,
+  nickname: string,
+  webContents: Electron.WebContents,
+  authServerUrl: string,
   serverIp?: string,
   auth?: IUser
 ) {
@@ -127,20 +138,18 @@ async function launchVanilla(
     const mcVersion = extractMinecraftVersion(versionId);
 
     const javaPath = await ensureJava(
-      getJavaVersionNeeded(mcVersion).toString(), 
-      webContents, 
+      getJavaVersionNeeded(mcVersion).toString(),
+      webContents,
       config.gamePath
     );
 
-    // 1. ПОДГОТОВКА JVM АРГУМЕНТОВ
     const jvmArgs: string[] = [];
 
-    // СНАЧАЛА инжектор (должен быть первым!)
-    if (authServerUrl) {
-      const injectorPath = await ensureInjector(config.gamePath, webContents);
-      jvmArgs.push(`-javaagent:${injectorPath}=${authServerUrl}`);
-      console.log(`[Inject] Инжектор добавлен: ${injectorPath}=${authServerUrl}`);
-    }
+    const injectorPath = await ensureInjector(config.gamePath, webContents);
+    const effectiveAuthUrl = authServerUrl || 'https://authserver.ely.by';
+    jvmArgs.push(`-javaagent:${injectorPath}=${effectiveAuthUrl}`);
+    console.log(`[Inject] Инжектор: ${effectiveAuthUrl} (${authServerUrl ? 'авторизован' : 'офлайн bypass'})`);
+
 
     jvmArgs.push(
       `-Dauthlibinjector.side=client`,
@@ -148,7 +157,6 @@ async function launchVanilla(
       `-Dminecraft.launcher.version=1.0.0`
     );
 
-    // 2. ОБРАБОТКА IP
     let cleanIp = serverIp;
     if (cleanIp?.startsWith('{')) {
       try { cleanIp = JSON.parse(cleanIp).java; } catch { }
@@ -156,29 +164,29 @@ async function launchVanilla(
     const host = cleanIp ? cleanIp.split(':')[0] : '';
     const port = cleanIp && cleanIp.includes(':') ? cleanIp.split(':')[1] : '25565';
 
-    // 3. ВЕРСИЯ ДЛЯ ЛОГИКИ QUICKPLAY
     const versionParts = mcVersion.split('.').map(Number);
     const majorMinor = versionParts[0] * 100 + (versionParts[1] || 0);
 
-    // 4. ФОРМИРОВАНИЕ ОПЦИЙ
+    // Game args — подключение к серверу
+    const gameArgs: string[] = [];
+    if (cleanIp) gameArgs.push('--server', host, '--port', port);
+
     const opts: any = {
       authorization: auth || authMethod(nickname),
       root: config.gamePath,
       javaPath,
-      version: { 
-        number: mcVersion, 
-        type: 'release' 
+      version: {
+        number: mcVersion,
+        type: 'release'
       },
-      memory: { 
-        min: "1G", 
-        max: `${config.ram}G` 
+      memory: {
+        min: "1G",
+        max: `${config.ram}G`
       },
-      customArgs: jvmArgs, // <-- массив, не строка!
+      customArgs: jvmArgs,
       overrides: {
         assetIndex: mcVersion,
-        ...(cleanIp ? { 
-          launchArgs: ['--server', host, '--port', port] 
-        } : {})
+        ...(gameArgs.length > 0 ? { gameArgs } : {})
       }
     };
 
@@ -190,11 +198,11 @@ async function launchVanilla(
       };
     }
 
-    console.log(`[Launch] Запуск версии ${mcVersion}. Режим: ${authServerUrl ? 'Online (Ely)' : 'Offline'}. Сервер: ${cleanIp || 'не задан'}`);
+    console.log(`[Launch] Запуск ${mcVersion}. Auth: ${authServerUrl || 'Offline'}. Сервер: ${cleanIp || 'нет'}`);
     console.log(`[Launch] customArgs: ${opts.customArgs.join(' ')}`);
 
     const launcher = createGameLauncher(
-      webContents, 
+      webContents,
       !fs.existsSync(path.join(config.gamePath, 'versions', mcVersion))
     );
     await launcher.launch(opts);
@@ -206,90 +214,81 @@ async function launchVanilla(
 }
 
 // ======================================================
-// 3. ФУНКЦИЯ Б: ЗАПУСК КАСТОМА (Только локально)
+// LAUNCH CUSTOM (Fabric и др.)
 // ======================================================
-
 async function launchCustom(
-  versionObj: any, 
-  nickname: string, 
+  versionObj: any,
+  nickname: string,
   webContents: Electron.WebContents,
   authServerUrl: string,
-  auth?: IUser, // Пятый аргумент: переданный объект авторизации
-  instanceDir?: string  // ← добавь
+  auth?: IUser,
+  instanceDir?: string
 ) {
   const { id, gameVersion, loaderVersion } = versionObj;
   const config = ConfigManager.load();
-  
-  // 1. Подготовка папок
+
   const versionDir = path.join(config.gamePath, 'versions', id);
   if (!fs.existsSync(versionDir)) fs.mkdirSync(versionDir, { recursive: true });
 
-  // 2. Подготовка профиля (JSON)
   const jsonPath = path.join(versionDir, `${id}.json`);
   if (!fs.existsSync(jsonPath)) {
-    console.log(`[Launcher] Профиль версии ${id} не найден, скачиваем...`);
+    console.log(`[Launcher] Профиль ${id} не найден, скачиваем...`);
     const fabricJson = await getFabricProfile(gameVersion, loaderVersion);
     fabricJson.id = id;
     fs.writeFileSync(jsonPath, JSON.stringify(fabricJson, null, 2));
   }
 
-  // 3. Подготовка Java
   const javaPath = await ensureJava(
-    getJavaVersionNeeded(gameVersion).toString(), 
-    webContents, 
+    getJavaVersionNeeded(gameVersion).toString(),
+    webContents,
     config.gamePath
   );
 
-  // 4. Формируем аргументы JVM
-  const extraArgs = [
+  const extraArgs: string[] = [
     `-Dauthlibinjector.side=client`,
     `-Dminecraft.launcher.brand=HardLauncher`,
-    `--versionType`, `release` // Некоторые версии требуют это как аргумент JVM
+    `-Dminecraft.launcher.version=1.0.0`
   ];
 
-  // Добавляем инжектор только если есть сервер скинов
-  if (authServerUrl) {
-    const injectorPath = await ensureInjector(config.gamePath, webContents);
-    extraArgs.unshift(`-javaagent:${injectorPath}=${authServerUrl}`);
-    console.log(`[Auth] Инжектор подключен: ${authServerUrl}`);
-  }
+  const injectorPath = await ensureInjector(config.gamePath, webContents);
+  const effectiveAuthUrl = authServerUrl || 'https://authserver.ely.by';
+  extraArgs.unshift(`-javaagent:${injectorPath}=${effectiveAuthUrl}`)
 
-  // 5. Опции запуска для MCLC
   const opts: any = {
-    // Если auth не передан (оффлайн), используем стандартный authMethod
     authorization: auth || authMethod(nickname),
     root: config.gamePath,
     javaPath,
     version: {
       number: gameVersion,
-      custom: id, // Важно для Fabric/Forge
-      type: 'release' 
+      custom: id,
+      type: 'release'
     },
-    memory: { 
-      min: "1G", 
-      max: `${config.ram}G` 
+    memory: {
+      min: "1G",
+      max: `${config.ram}G`
     },
     overrides: {
       detached: true,
-      extraArgs: extraArgs,
-       ...(instanceDir ? { gameDirectory: instanceDir } : {})
+      extraArgs,
+      ...(instanceDir ? { gameDirectory: instanceDir } : {})
     },
-    skipAsync: true // Для кастомных версий часто требуется
+    skipAsync: true
   };
 
-  // 6. Синхронизация серверов перед запуском
   await syncServers(config.gamePath);
 
-  // 7. Проверка основного JAR и запуск
   const jarPath = path.join(versionDir, `${id}.jar`);
   const isReady = fs.existsSync(jarPath);
-  
+
   console.log(`[Launcher] Запуск кастомной версии: ${id} (${gameVersion})`);
-  
+
   const launcher = createGameLauncher(webContents, !isReady);
   await launcher.launch(opts);
 }
 
+// ======================================================
+// LAUNCH FORGE
+// ======================================================
 async function launchForge(
   versionObj: any,
   nickname: string,
@@ -316,43 +315,44 @@ async function launchForge(
   );
 
   const lib = path.join(config.gamePath, 'libraries');
-  const sep = path.delimiter; // ; на Windows
+  const sep = path.delimiter;
 
-const customArgs: string[] = [
-  `-Djava.net.preferIPv6Addresses=system`,
-  `-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,fmlcore,javafmllanguage,lowcodelanguage,mclanguage,forge-,${forgeVersionId}.jar`,
-  `-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar`,
-  `-DlibraryDirectory=${lib}`,
-  `-p`,
-  [
-    `${lib}/cpw/mods/bootstraplauncher/1.1.2/bootstraplauncher-1.1.2.jar`,
-    `${lib}/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar`,
-    `${lib}/org/ow2/asm/asm-commons/9.8/asm-commons-9.8.jar`,
-    `${lib}/org/ow2/asm/asm-util/9.8/asm-util-9.8.jar`,
-    `${lib}/org/ow2/asm/asm-analysis/9.8/asm-analysis-9.8.jar`,
-    `${lib}/org/ow2/asm/asm-tree/9.8/asm-tree-9.8.jar`,
-    `${lib}/org/ow2/asm/asm/9.8/asm-9.8.jar`,
-    `${lib}/net/minecraftforge/JarJarFileSystems/0.3.19/JarJarFileSystems-0.3.19.jar`,
-  ].join(sep),
-  `--add-modules`, `ALL-MODULE-PATH`,
-  `--add-opens`, `java.base/java.util.jar=cpw.mods.securejarhandler`,
-  `--add-opens`, `java.base/java.lang.invoke=cpw.mods.securejarhandler`,
-  `--add-exports`, `java.base/sun.security.util=cpw.mods.securejarhandler`,
-  `--add-exports`, `jdk.naming.dns/com.sun.jndi.dns=java.naming`,
-  `-Dminecraft.launcher.brand=HardLauncher`,
-  `-Dminecraft.launcher.version=1.0.0`,
-];
+  const minorVersion = parseInt(gameVersion.split('.')[1]);
+  const needsModulePath = minorVersion >= 17;
 
-if (authServerUrl) {
-  const injectorPath = await ensureInjector(config.gamePath, webContents);
-  customArgs.unshift(`-javaagent:${injectorPath}=${authServerUrl}`);
-}
+  const customArgs: string[] = [
+    `-Djava.net.preferIPv6Addresses=system`,
+    `-Dminecraft.launcher.brand=HardLauncher`,
+    `-Dminecraft.launcher.version=1.0.0`,
+  ];
 
-
-  if (authServerUrl) {
-    const injectorPath = await ensureInjector(config.gamePath, webContents);
-    customArgs.unshift(`-javaagent:${injectorPath}=${authServerUrl}`);
+  if (needsModulePath) {
+    customArgs.push(
+      `-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,fmlcore,javafmllanguage,lowcodelanguage,mclanguage,forge-,${forgeVersionId}.jar`,
+      `-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar`,
+      `-DlibraryDirectory=${lib}`,
+      `-p`,
+      [
+        `${lib}/cpw/mods/bootstraplauncher/1.1.2/bootstraplauncher-1.1.2.jar`,
+        `${lib}/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar`,
+        `${lib}/org/ow2/asm/asm-commons/9.8/asm-commons-9.8.jar`,
+        `${lib}/org/ow2/asm/asm-util/9.8/asm-util-9.8.jar`,
+        `${lib}/org/ow2/asm/asm-analysis/9.8/asm-analysis-9.8.jar`,
+        `${lib}/org/ow2/asm/asm-tree/9.8/asm-tree-9.8.jar`,
+        `${lib}/org/ow2/asm/asm/9.8/asm-9.8.jar`,
+        `${lib}/net/minecraftforge/JarJarFileSystems/0.3.19/JarJarFileSystems-0.3.19.jar`,
+      ].join(sep),
+      `--add-modules`, `ALL-MODULE-PATH`,
+      `--add-opens`, `java.base/java.util.jar=cpw.mods.securejarhandler`,
+      `--add-opens`, `java.base/java.lang.invoke=cpw.mods.securejarhandler`,
+      `--add-exports`, `java.base/sun.security.util=cpw.mods.securejarhandler`,
+      `--add-exports`, `jdk.naming.dns/com.sun.jndi.dns=java.naming`,
+    );
   }
+
+  const injectorPath = await ensureInjector(config.gamePath, webContents);
+  const effectiveAuthUrl = authServerUrl || 'https://authserver.ely.by';
+  customArgs.unshift(`-javaagent:${injectorPath}=${effectiveAuthUrl}`)
 
   const opts: any = {
     authorization: auth || authMethod(nickname),
@@ -364,7 +364,7 @@ if (authServerUrl) {
       type: 'release',
     },
     memory: { min: '1G', max: `${config.ram}G` },
-    customArgs, // ← JVM аргументы
+    customArgs,
     overrides: {
       detached: true,
       ...(instanceDir ? { gameDirectory: instanceDir } : {})
@@ -382,6 +382,7 @@ if (authServerUrl) {
 
 // Добавь authProvider в деструктуризацию аргументов
 ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
+  console.log('[launch-game] version:', version, '| nickname:', nickname, '| instanceId:', instanceId);
   const webContents = event.sender;
   const config = ConfigManager.load();
 
@@ -391,22 +392,32 @@ ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
   let authServerUrl = '';
   let userAuth: IUser;
 
-  if (account && account.uuid && account.token && account.token !== "0") {
-    if (account.provider === 'ely') authServerUrl = 'ely.by';
-    else if (account.provider === 'internal') authServerUrl = 'https://hardtimes-server-1.onrender.com/user';
-    const formattedUUID = formatUUID(account.uuid);
-    userAuth = {
-      access_token: account.token,
-      client_token: formattedUUID,
-      uuid: formattedUUID,
-      name: nickname,
-      user_properties: {},
-      meta: { type: "mojang", demo: false }
-    };
-  } else {
-    authServerUrl = '';
-    userAuth = authMethod(nickname);
-  }
+    if (account && account.provider === 'microsoft' && account.mclcToken) {
+      try {
+        const mclcToken = JSON.parse(account.mclcToken);
+        userAuth = mclcToken;
+        authServerUrl = ''; // Microsoft — без инжектора
+      } catch {
+        userAuth = authMethod(nickname);
+        authServerUrl = 'https://authserver.ely.by';
+      }
+    } else if (account && account.uuid && account.token && account.token !== "0") {
+      // Ely.by и Internal — оба через ely.by инжектор
+      authServerUrl = 'https://authserver.ely.by';
+      const formattedUUID = formatUUID(account.uuid);
+      userAuth = {
+        access_token: account.token,
+        client_token: formattedUUID,
+        uuid: formattedUUID,
+        name: nickname,
+        user_properties: {},
+        meta: { type: "mojang" as any, demo: false }
+      };
+    } else {
+      // Офлайн — тоже через ely.by для разблокировки мультиплеера
+      authServerUrl = 'https://authserver.ely.by';
+      userAuth = authMethod(nickname);
+    }
 
   try {
     // Если передан instanceId — запускаем инстанс модпака
@@ -763,6 +774,52 @@ ipcMain.handle('hardtimes-auth', async (_, { email, password, username, isRegist
   } catch (error: any) {
     console.error('[HardTimes Auth Error]', error.message);
     return { error: true, message: error.message };
+  }
+});
+
+ipcMain.handle('microsoft-auth', async () => {
+  try {
+    const authManager = new Auth('select_account');
+    const xboxManager = await authManager.launch('electron');
+    const token = await xboxManager.getMinecraft();
+
+    const mclcToken = token.mclc();
+
+    // profile может быть undefined — получаем через fetch
+    const profileRes = await fetch('https://api.minecraftservices.com/minecraft/profile', {
+      headers: { Authorization: `Bearer ${mclcToken.access_token}` }
+    });
+
+    if (!profileRes.ok) {
+      return { success: false, error: 'Лицензия Minecraft не найдена или профиль недоступен' };
+    }
+
+    const profile = await profileRes.json();
+
+    if (!profile.id || !profile.name) {
+      return { success: false, error: 'Не удалось получить профиль Minecraft' };
+    }
+
+    const config = ConfigManager.load();
+    const manager = new AccountManager(config.gamePath);
+    manager.save({
+      nickname: profile.name,
+      token: mclcToken.access_token,
+      uuid: profile.id,
+      provider: 'microsoft',
+      authServer: '',
+      mclcToken: JSON.stringify(mclcToken),
+    });
+
+    return {
+      success: true,
+      nickname: profile.name,
+      uuid: profile.id,
+      accessToken: mclcToken.access_token,
+    };
+  } catch (err: any) {
+    console.error('[Microsoft Auth Error]', err);
+    return { success: false, error: err.message || 'Ошибка авторизации Microsoft' };
   }
 });
 

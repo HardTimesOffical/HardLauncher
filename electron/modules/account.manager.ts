@@ -4,9 +4,10 @@ import path from 'path';
 export interface Account {
   nickname: string;
   token: string;
-  uuid?: string;
-  provider?: string;
+  uuid: string;
+  provider: 'internal' | 'ely' | 'offline' | 'microsoft';
   authServer?: string;
+  mclcToken?: string; // ← добавь
 }
 
 export class AccountManager {
