@@ -54,7 +54,7 @@ async function downloadToFile(url: string, destPath: string): Promise<void> {
 }
 
 // Распаковать zip (mrpack = zip)
-async function extractZip(zipBuffer: Buffer, extractDir: string): Promise<Map<string, Buffer>> {
+async function extractZip(zipBuffer: Buffer): Promise<Map<string, Buffer>> {
   // Используем встроенный Node.js zlib для простых случаев
   // Для zip нужен сторонний модуль. Используем динамический import.
   const AdmZip = (await import('adm-zip')).default;
@@ -92,7 +92,7 @@ export async function installModpack(
 
     // 2. Распаковать и найти modrinth.index.json
     onProgress({ stage: 'extracting', message: 'Распаковка модпака...', percent: 15 });
-    const files = await extractZip(mrpackBuffer, '');
+    const files = await extractZip(mrpackBuffer);
 
     const indexBuffer = files.get('modrinth.index.json');
     if (!indexBuffer) throw new Error('modrinth.index.json не найден в архиве');
