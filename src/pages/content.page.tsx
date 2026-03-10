@@ -44,6 +44,12 @@ interface InstallProgress {
   percent: number;
 }
 
+interface ModrinthCategory {
+  name: string;
+  project_type: string;
+  header: string;
+}
+
 const CONTENT_TABS: { id: ContentType; label: string; icon: string }[] = [
   { id: 'mod',          label: 'Моды',       icon: '🧩' },
   { id: 'modpack',      label: 'Модпаки',    icon: '📦' },
@@ -58,6 +64,9 @@ const SORT_OPTIONS = [
   { value: 'updated',    label: 'Обновлённые' },
   { value: 'relevance',  label: 'Релевантность' },
 ];
+
+// Категории которые НЕ показываем (загрузчики — уже есть отдельные бейджи)
+const LOADER_CATEGORIES = new Set(['fabric', 'forge', 'neoforge', 'quilt', 'liteloader', 'modloader', 'rift', 'bukkit', 'folia', 'paper', 'purpur', 'spigot', 'sponge', 'bungeecord', 'waterfall', 'velocity', 'datapack']);
 
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -75,10 +84,16 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(days / 365)}г назад`;
 }
 
+const loaderStyle = (l: string) => {
+  if (l === 'fabric')   return { bg: 'rgba(250,204,21,0.08)',  text: 'rgba(250,204,21,0.75)',  border: 'rgba(250,204,21,0.2)' };
+  if (l === 'forge')    return { bg: 'rgba(251,146,60,0.08)',  text: 'rgba(251,146,60,0.75)',  border: 'rgba(251,146,60,0.2)' };
+  if (l === 'neoforge') return { bg: 'rgba(248,113,113,0.08)', text: 'rgba(248,113,113,0.75)', border: 'rgba(248,113,113,0.2)' };
+  if (l === 'quilt')    return { bg: 'rgba(167,139,250,0.08)', text: 'rgba(167,139,250,0.75)', border: 'rgba(167,139,250,0.2)' };
+  return { bg: 'var(--color-bg-subtle)', text: 'var(--color-text-dim)', border: 'var(--color-border)' };
+};
+
 // ─── Custom Select ───────────────────────────────────────
-function CustomSelect({
-  value, onChange, options, placeholder,
-}: {
+function CustomSelect({ value, onChange, options, placeholder }: {
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
@@ -109,43 +124,30 @@ function CustomSelect({
         }}
       >
         <span className="flex-1 text-left truncate">{selected?.label || placeholder || 'Выбрать'}</span>
-        <svg
-          className="w-2.5 h-2.5 flex-shrink-0 transition-transform duration-200"
+        <svg className="w-2.5 h-2.5 flex-shrink-0 transition-transform duration-200"
           style={{ transform: open ? 'rotate(180deg)' : 'none', color: open ? 'var(--color-brand)' : 'var(--color-text-dim)' }}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
-        >
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-
       {open && (
-        <div
-          className="absolute top-[calc(100%+4px)] left-0 min-w-full rounded-xl border shadow-2xl z-[500] overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150"
-          style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}
-        >
+        <div className="absolute top-[calc(100%+4px)] left-0 min-w-full rounded-xl border shadow-2xl z-[500] overflow-hidden animate-in"
+          style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}>
           {placeholder && (
-            <div
-              onClick={() => { onChange(''); setOpen(false); }}
+            <div onClick={() => { onChange(''); setOpen(false); }}
               className="px-3 py-2 text-[10px] cursor-pointer"
-              style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}
+              style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-subtle)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}
-            >
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}>
               {placeholder}
             </div>
           )}
           {options.map(opt => (
-            <div
-              key={opt.value}
-              onClick={() => { onChange(opt.value); setOpen(false); }}
-              className="px-3 py-2 text-[10px] cursor-pointer transition-all flex items-center justify-between gap-2"
-              style={{
-                backgroundColor: value === opt.value ? 'var(--color-brand-dim)' : 'transparent',
-                color: value === opt.value ? 'var(--color-brand)' : 'var(--color-text)',
-              }}
+            <div key={opt.value} onClick={() => { onChange(opt.value); setOpen(false); }}
+              className="px-3 py-2 text-[10px] cursor-pointer flex items-center justify-between gap-2"
+              style={{ backgroundColor: value === opt.value ? 'var(--color-brand-dim)' : 'transparent', color: value === opt.value ? 'var(--color-brand)' : 'var(--color-text)' }}
               onMouseEnter={e => { if (value !== opt.value) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-subtle)'; }}
-              onMouseLeave={e => { if (value !== opt.value) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-            >
+              onMouseLeave={e => { if (value !== opt.value) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}>
               <span className="whitespace-nowrap">{opt.label}</span>
               {value === opt.value && (
                 <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--color-brand)' }}>
@@ -160,6 +162,254 @@ function CustomSelect({
   );
 }
 
+// ─── Project Detail Panel ────────────────────────────────
+function ProjectDetailPanel({ project, instances, onClose, onInstallMod, onInstallModpack }: {
+  project: ModrinthProject;
+  instances: GameInstance[];
+  onClose: () => void;
+  onInstallMod: (url: string, filename: string, instanceId?: string) => void;
+  onInstallModpack: (mrpackUrl: string, versionId: string) => void;
+}) {
+  const [versions, setVersions]         = useState<ModrinthVersion[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [gameFilter, setGameFilter]     = useState('');
+  const [loaderFilter, setLoaderFilter] = useState('');
+  const [selectedInstance, setSelectedInstance] = useState('');
+  const [tab, setTab]                   = useState<'versions' | 'info'>('info');
+  const isModpack = project.project_type === 'modpack';
+
+  useEffect(() => {
+    fetch(`${MODRINTH_API}/project/${project.project_id}/version`)
+      .then(r => r.json())
+      .then(data => { setVersions(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [project.project_id]);
+
+  const gameVersions = [...new Set(versions.flatMap(v => v.game_versions))].sort().reverse();
+  const loaders      = [...new Set(versions.flatMap(v => v.loaders))];
+
+  const filtered = versions.filter(v => {
+    if (gameFilter   && !v.game_versions.includes(gameFilter))   return false;
+    if (loaderFilter && !v.loaders.includes(loaderFilter))       return false;
+    return true;
+  });
+
+  const displayCategories = project.categories.filter(c => !LOADER_CATEGORIES.has(c));
+  const displayLoaders    = project.categories.filter(c => LOADER_CATEGORIES.has(c)).slice(0, 4);
+
+  return (
+    <div className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'rgba(0,0,0,0.8)' }} onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-t-2xl sm:rounded-2xl overflow-hidden shadow-2xl border flex flex-col"
+        style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)', maxHeight: '88vh' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Gallery / Header */}
+        <div className="relative flex-shrink-0">
+          {project.featured_gallery ? (
+            <div className="h-32 overflow-hidden relative">
+              <img src={project.featured_gallery} className="w-full h-full object-cover" alt=""
+                onError={e => { (e.target as any).style.display = 'none'; }} />
+              <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, var(--color-bg-elevated) 10%, transparent 60%)' }} />
+            </div>
+          ) : (
+            <div className="h-2" style={{ backgroundColor: 'var(--color-brand)', opacity: 0.4 }} />
+          )}
+
+          <div className={`flex items-end gap-4 px-5 pb-4 ${project.featured_gallery ? 'absolute bottom-0 left-0 right-0' : 'pt-4'}`}>
+            <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 flex-shrink-0 flex items-center justify-center shadow-lg"
+              style={{ backgroundColor: 'var(--color-bg-subtle)', borderColor: 'var(--color-border)' }}>
+              {project.icon_url
+                ? <img src={project.icon_url} className="w-full h-full object-cover" alt="" onError={e => { (e.target as any).style.display = 'none'; }} />
+                : <span className="text-2xl">{isModpack ? '📦' : '🧩'}</span>}
+            </div>
+            <div className="flex-1 min-w-0 pb-1">
+              <h2 className="text-[15px] font-black truncate" style={{ color: 'var(--color-text)' }}>{project.title}</h2>
+              <div className="flex items-center gap-3 mt-0.5">
+                <span className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
+                  {formatNumber(project.downloads)} загрузок
+                </span>
+                <span className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
+                  {formatNumber(project.follows)} подписчиков
+                </span>
+                <span className="text-[9px]" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>
+                  {timeAgo(project.date_modified)}
+                </span>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg mb-1 flex-shrink-0 transition-all border"
+              style={{ color: 'var(--color-text-dim)', borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-subtle)' }}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b flex-shrink-0 px-5 gap-1" style={{ borderColor: 'var(--color-border)' }}>
+          {(['info', 'versions'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all"
+              style={{
+                borderBottomColor: tab === t ? 'var(--color-brand)' : 'transparent',
+                color: tab === t ? 'var(--color-brand)' : 'var(--color-text-dim)',
+              }}>
+              {t === 'info' ? 'О проекте' : `Версии (${versions.length})`}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+
+          {/* INFO TAB */}
+          {tab === 'info' && (
+            <div className="p-5 flex flex-col gap-4">
+
+              {/* Description */}
+              <div>
+                <p className="text-[9px] uppercase tracking-widest mb-2 font-bold"
+                  style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Описание</p>
+                <p className="text-[12px] leading-relaxed" style={{ color: 'var(--color-text)' }}>
+                  {project.description}
+                </p>
+              </div>
+
+              {/* Loaders */}
+              {displayLoaders.length > 0 && (
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest mb-2 font-bold"
+                    style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Загрузчики</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {displayLoaders.map(l => {
+                      const s = loaderStyle(l);
+                      return (
+                        <span key={l} className="text-[10px] px-2.5 py-1 rounded-lg border font-bold capitalize"
+                          style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border }}>
+                          {l}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Categories */}
+              {displayCategories.length > 0 && (
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest mb-2 font-bold"
+                    style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Категории</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {displayCategories.map(c => (
+                      <span key={c} className="text-[10px] px-2.5 py-1 rounded-lg border capitalize"
+                        style={{ backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-dim)', borderColor: 'var(--color-border)' }}>
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick install button */}
+              <button
+                onClick={() => setTab('versions')}
+                className="w-full py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest border transition-all mt-1"
+                style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.8'}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
+              >
+                Выбрать версию для установки →
+              </button>
+            </div>
+          )}
+
+          {/* VERSIONS TAB */}
+          {tab === 'versions' && (
+            <div className="flex flex-col">
+              {/* Instance + Filters */}
+              <div className="px-4 py-3 border-b flex flex-wrap gap-2 items-center"
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-subtle)' }}>
+                {!isModpack && instances.length > 0 && (
+                  <CustomSelect value={selectedInstance} onChange={setSelectedInstance}
+                    placeholder="Глобальная папка"
+                    options={instances.map(i => ({ value: i.id, label: `${i.name} (${i.gameVersion})` }))} />
+                )}
+                <CustomSelect value={gameFilter} onChange={setGameFilter} placeholder="Все версии MC"
+                  options={gameVersions.slice(0, 25).map(v => ({ value: v, label: v }))} />
+                {loaders.length > 1 && (
+                  <CustomSelect value={loaderFilter} onChange={setLoaderFilter} placeholder="Все загрузчики"
+                    options={loaders.map(l => ({ value: l, label: l }))} />
+                )}
+                <span className="text-[9px] ml-auto" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>
+                  {filtered.length} версий
+                </span>
+              </div>
+
+              {/* Version list */}
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-5 h-5 border-2 rounded-full animate-spin"
+                    style={{ borderColor: 'var(--color-brand-dim)', borderTopColor: 'var(--color-brand)' }} />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center py-10 text-[11px]" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>
+                  Версии не найдены
+                </div>
+              ) : filtered.slice(0, 50).map(ver => {
+                const primaryFile = ver.files.find(f => f.primary) || ver.files[0];
+                const mrpackFile  = ver.files.find(f => f.filename.endsWith('.mrpack'));
+                const targetFile  = isModpack ? mrpackFile : primaryFile;
+                return (
+                  <div key={ver.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-0 transition-colors"
+                    style={{ borderColor: 'var(--color-border)' }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-subtle)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-semibold truncate" style={{ color: 'var(--color-text)' }}>{ver.name}</p>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {ver.game_versions.slice(0, 5).map(gv => (
+                          <span key={gv} className="text-[8px] px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-dim)', opacity: 0.7 }}>{gv}</span>
+                        ))}
+                        {ver.loaders.map(l => {
+                          const s = loaderStyle(l);
+                          return <span key={l} className="text-[8px] px-1.5 py-0.5 rounded border font-bold"
+                            style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border }}>{l}</span>;
+                        })}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 mr-2">
+                      <p className="text-[9px]" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>{timeAgo(ver.date_published)}</p>
+                      <p className="text-[9px]" style={{ color: 'var(--color-text-dim)', opacity: 0.3 }}>{formatNumber(ver.downloads)} ↓</p>
+                    </div>
+                    {targetFile && (
+                      <button
+                        onClick={() => {
+                          if (isModpack && mrpackFile) onInstallModpack(mrpackFile.url, ver.id);
+                          else if (primaryFile) onInstallMod(primaryFile.url, primaryFile.filename, selectedInstance || undefined);
+                          onClose();
+                        }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all flex-shrink-0"
+                        style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Progress Modal ──────────────────────────────────────
 function ModpackProgressModal({ progress, projectName, onClose }: {
   progress: InstallProgress | null;
@@ -169,7 +419,6 @@ function ModpackProgressModal({ progress, projectName, onClose }: {
   if (!progress) return null;
   const isDone  = progress.stage === 'done';
   const isError = progress.stage === 'error';
-
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)' }}>
       <div className="w-full max-w-sm rounded-2xl p-6 flex flex-col gap-4 border shadow-2xl"
@@ -217,176 +466,18 @@ function ModpackProgressModal({ progress, projectName, onClose }: {
   );
 }
 
-// ─── Version Modal ───────────────────────────────────────
-function VersionModal({ project, instances, onClose, onInstallMod, onInstallModpack }: {
-  project: ModrinthProject;
-  instances: GameInstance[];
-  onClose: () => void;
-  onInstallMod: (url: string, filename: string, instanceId?: string) => void;
-  onInstallModpack: (mrpackUrl: string, versionId: string) => void;
-}) {
-  const [versions, setVersions]         = useState<ModrinthVersion[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [gameFilter, setGameFilter]     = useState('');
-  const [loaderFilter, setLoaderFilter] = useState('');
-  const [selectedInstance, setSelectedInstance] = useState('');
-  const isModpack = project.project_type === 'modpack';
-
-  useEffect(() => {
-    fetch(`${MODRINTH_API}/project/${project.project_id}/version`)
-      .then(r => r.json())
-      .then(data => { setVersions(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [project.project_id]);
-
-  const gameVersions = [...new Set(versions.flatMap(v => v.game_versions))].sort().reverse();
-  const loaders      = [...new Set(versions.flatMap(v => v.loaders))];
-
-  const filtered = versions.filter(v => {
-    if (gameFilter   && !v.game_versions.includes(gameFilter))   return false;
-    if (loaderFilter && !v.loaders.includes(loaderFilter))       return false;
-    return true;
-  });
-
-  const loaderStyle = (l: string) => {
-    if (l === 'fabric')   return { bg: 'rgba(250,204,21,0.08)',  text: 'rgba(250,204,21,0.7)',  border: 'rgba(250,204,21,0.15)' };
-    if (l === 'forge')    return { bg: 'rgba(251,146,60,0.08)',  text: 'rgba(251,146,60,0.7)',  border: 'rgba(251,146,60,0.15)' };
-    if (l === 'neoforge') return { bg: 'rgba(248,113,113,0.08)', text: 'rgba(248,113,113,0.7)', border: 'rgba(248,113,113,0.15)' };
-    return { bg: 'var(--color-bg-subtle)', text: 'var(--color-text-dim)', border: 'var(--color-border)' };
-  };
-
-  return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.8)' }} onClick={onClose}>
-      <div className="w-full max-w-xl rounded-2xl overflow-hidden shadow-2xl border"
-        style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}
-        onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
-          {project.icon_url && (
-            <img src={project.icon_url} className="w-9 h-9 rounded-xl object-cover" alt=""
-              onError={e => { (e.target as any).style.display = 'none'; }} />
-          )}
-          <div className="flex-1 min-w-0">
-            <h3 className="text-[13px] font-bold truncate" style={{ color: 'var(--color-text)' }}>{project.title}</h3>
-            <p className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>{versions.length} версий</p>
-          </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
-            style={{ color: 'var(--color-text-dim)' }}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Instance selector */}
-        {!isModpack && instances.length > 0 && (
-          <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-subtle)' }}>
-            <p className="text-[9px] uppercase tracking-wider mb-2" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>
-              Установить в инстанс
-            </p>
-            <CustomSelect
-              value={selectedInstance}
-              onChange={setSelectedInstance}
-              placeholder="Глобальная папка"
-              options={instances.map(i => ({ value: i.id, label: `${i.name} (${i.gameVersion})` }))}
-            />
-          </div>
-        )}
-
-        {/* Filters */}
-        <div className="flex gap-2 p-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
-          <CustomSelect value={gameFilter} onChange={setGameFilter} placeholder="Все версии MC"
-            options={gameVersions.slice(0, 25).map(v => ({ value: v, label: v }))} />
-          {loaders.length > 1 && (
-            <CustomSelect value={loaderFilter} onChange={setLoaderFilter} placeholder="Все загрузчики"
-              options={loaders.map(l => ({ value: l, label: l }))} />
-          )}
-        </div>
-
-        {/* List */}
-        <div className="max-h-72 overflow-y-auto custom-scrollbar">
-          {loading ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="w-5 h-5 border-2 rounded-full animate-spin"
-                style={{ borderColor: 'var(--color-brand-dim)', borderTopColor: 'var(--color-brand)' }} />
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center py-8 text-[11px]" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>Версии не найдены</div>
-          ) : filtered.slice(0, 50).map(ver => {
-            const primaryFile = ver.files.find(f => f.primary) || ver.files[0];
-            const mrpackFile  = ver.files.find(f => f.filename.endsWith('.mrpack'));
-            const targetFile  = isModpack ? mrpackFile : primaryFile;
-            return (
-              <div key={ver.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-0 transition-colors"
-                style={{ borderColor: 'var(--color-border)' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-subtle)'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium truncate" style={{ color: 'var(--color-text)' }}>{ver.name}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    {ver.game_versions.slice(0, 4).map(gv => (
-                      <span key={gv} className="text-[8px] px-1.5 py-0.5 rounded"
-                        style={{ backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-dim)', opacity: 0.6 }}>{gv}</span>
-                    ))}
-                    {ver.loaders.map(l => {
-                      const s = loaderStyle(l);
-                      return <span key={l} className="text-[8px] px-1.5 py-0.5 rounded border font-bold"
-                        style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border }}>{l}</span>;
-                    })}
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0 mr-2">
-                  <p className="text-[9px]" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>{timeAgo(ver.date_published)}</p>
-                  <p className="text-[9px]" style={{ color: 'var(--color-text-dim)', opacity: 0.3 }}>{formatNumber(ver.downloads)} ↓</p>
-                </div>
-                {targetFile && (
-                  <button
-                    onClick={() => {
-                      if (isModpack && mrpackFile) onInstallModpack(mrpackFile.url, ver.id);
-                      else if (primaryFile) onInstallMod(primaryFile.url, primaryFile.filename, selectedInstance || undefined);
-                      onClose();
-                    }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border transition-all flex-shrink-0"
-                    style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Project Card ────────────────────────────────────────
 function ProjectCard({ project, onClick }: { project: ModrinthProject; onClick: () => void }) {
   const [imgError, setImgError] = useState(false);
   const isModpack = project.project_type === 'modpack';
-  const loaderBadges    = project.categories.filter(c => ['fabric', 'forge', 'neoforge', 'quilt'].includes(c)).slice(0, 2);
-  const otherCategories = project.categories.filter(c => !['fabric', 'forge', 'neoforge', 'quilt'].includes(c)).slice(0, 2);
-
-  const loaderStyle = (l: string) => {
-    if (l === 'fabric')   return { bg: 'rgba(250,204,21,0.08)',  text: 'rgba(250,204,21,0.6)',  border: 'rgba(250,204,21,0.12)' };
-    if (l === 'forge')    return { bg: 'rgba(251,146,60,0.08)',  text: 'rgba(251,146,60,0.6)',  border: 'rgba(251,146,60,0.12)' };
-    if (l === 'neoforge') return { bg: 'rgba(248,113,113,0.08)', text: 'rgba(248,113,113,0.6)', border: 'rgba(248,113,113,0.12)' };
-    return { bg: 'var(--color-bg-subtle)', text: 'var(--color-text-dim)', border: 'var(--color-border)' };
-  };
+  const loaderBadges    = project.categories.filter(c => LOADER_CATEGORIES.has(c)).slice(0, 2);
+  const otherCategories = project.categories.filter(c => !LOADER_CATEGORIES.has(c)).slice(0, 2);
 
   return (
     <div onClick={onClick} className="group relative rounded-2xl overflow-hidden cursor-pointer border transition-all duration-200"
       style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}
       onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--color-brand)'; el.style.transform = 'translateY(-2px)'; el.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)'; }}
-      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--color-border)'; el.style.transform = 'none'; el.style.boxShadow = 'none'; }}
-    >
+      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--color-border)'; el.style.transform = 'none'; el.style.boxShadow = 'none'; }}>
       {project.featured_gallery && (
         <div className="h-24 overflow-hidden relative">
           <img src={project.featured_gallery} className="w-full h-full object-cover opacity-50 group-hover:opacity-70 transition-opacity" alt=""
@@ -415,7 +506,7 @@ function ProjectCard({ project, onClick }: { project: ModrinthProject; onClick: 
             ); })}
             {otherCategories.map(c => (
               <span key={c} className="text-[8px] px-1.5 py-0.5 rounded border capitalize"
-                style={{ backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-dim)', borderColor: 'var(--color-border)', opacity: 0.6 }}>{c}</span>
+                style={{ backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-dim)', borderColor: 'var(--color-border)', opacity: 0.7 }}>{c}</span>
             ))}
           </div>
         )}
@@ -438,7 +529,7 @@ function ProjectCard({ project, onClick }: { project: ModrinthProject; onClick: 
       </div>
       <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity">
         <div className="rounded-lg px-2 py-0.5 border" style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)' }}>
-          <span className="text-[8px] font-bold uppercase" style={{ color: 'var(--color-brand)' }}>{isModpack ? 'Установить' : 'Версии'}</span>
+          <span className="text-[8px] font-bold uppercase" style={{ color: 'var(--color-brand)' }}>Подробнее</span>
         </div>
       </div>
     </div>
@@ -451,6 +542,7 @@ export default function ContentPage({ nickname }: { nickname: string }) {
   const [debouncedSearch, setDebouncedSearch]     = useState('');
   const [contentType, setContentType]             = useState<ContentType>('mod');
   const [sortBy, setSortBy]                       = useState('downloads');
+  const [selectedCategory, setSelectedCategory]   = useState('');
   const [projects, setProjects]                   = useState<ModrinthProject[]>([]);
   const [loading, setLoading]                     = useState(true);
   const [offset, setOffset]                       = useState(0);
@@ -460,7 +552,20 @@ export default function ContentPage({ nickname }: { nickname: string }) {
   const [installProgress, setInstallProgress]     = useState<InstallProgress | null>(null);
   const [installingProject, setInstallingProject] = useState('');
   const [toast, setToast]                         = useState<string | null>(null);
+  const [categories, setCategories]               = useState<ModrinthCategory[]>([]);
   const LIMIT = 20;
+
+  // Fetch categories for current content type
+  useEffect(() => {
+    fetch(`${MODRINTH_API}/tag/category`)
+      .then(r => r.json())
+      .then((data: ModrinthCategory[]) => {
+        const type = contentType === 'shader' ? 'shader' : contentType === 'resourcepack' ? 'resourcepack' : contentType === 'modpack' ? 'modpack' : 'mod';
+        setCategories(data.filter(c => c.project_type === type && !LOADER_CATEGORIES.has(c.name)));
+      })
+      .catch(() => {});
+    setSelectedCategory('');
+  }, [contentType]);
 
   useEffect(() => {
     window.ipcRenderer.invoke('get-instances').then(setInstances).catch(() => {});
@@ -483,13 +588,20 @@ export default function ContentPage({ nickname }: { nickname: string }) {
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { setOffset(0); setProjects([]); }, [contentType, debouncedSearch, sortBy]);
+  useEffect(() => { setOffset(0); setProjects([]); }, [contentType, debouncedSearch, sortBy, selectedCategory]);
 
   const fetchProjects = useCallback(async (off: number) => {
     setLoading(true);
     try {
-      const facets = JSON.stringify([[`project_type:${contentType}`]]);
-      const params = new URLSearchParams({ query: debouncedSearch, facets, index: sortBy, offset: String(off), limit: String(LIMIT) });
+      const facets: string[][] = [[`project_type:${contentType}`]];
+      if (selectedCategory) facets.push([`categories:${selectedCategory}`]);
+      const params = new URLSearchParams({
+        query: debouncedSearch,
+        facets: JSON.stringify(facets),
+        index: sortBy,
+        offset: String(off),
+        limit: String(LIMIT),
+      });
       const res  = await fetch(`${MODRINTH_API}/search?${params}`);
       const data = await res.json();
       setTotalHits(data.total_hits || 0);
@@ -500,7 +612,7 @@ export default function ContentPage({ nickname }: { nickname: string }) {
     } finally {
       setLoading(false);
     }
-  }, [contentType, debouncedSearch, sortBy]);
+  }, [contentType, debouncedSearch, sortBy, selectedCategory]);
 
   useEffect(() => { fetchProjects(0); }, [fetchProjects]);
 
@@ -568,7 +680,7 @@ export default function ContentPage({ nickname }: { nickname: string }) {
               onFocus={e => (e.target as HTMLElement).style.borderColor = 'var(--color-brand)'}
               onBlur={e => (e.target as HTMLElement).style.borderColor = 'var(--color-border)'} />
             {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors"
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2"
                 style={{ color: 'var(--color-text-dim)' }}>
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -579,54 +691,79 @@ export default function ContentPage({ nickname }: { nickname: string }) {
         </div>
       </div>
 
-      {/* Stats */}
-      {!loading && totalHits > 0 && (
-        <div className="px-5 py-1.5 border-b flex-shrink-0" style={{ borderColor: 'var(--color-border)' }}>
-          <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>
-            {formatNumber(totalHits)} проектов{debouncedSearch ? ` по «${debouncedSearch}»` : ''}
-          </span>
-        </div>
-      )}
-
-      {/* Instances bar */}
-      {instances.length > 0 && (
-        <div className="px-5 py-2 border-b flex items-center gap-2 flex-shrink-0 overflow-x-auto"
+      {/* CATEGORY FILTER BAR */}
+      {categories.length > 0 && (
+        <div className="px-5 py-2 border-b flex items-center gap-1.5 flex-shrink-0 overflow-x-auto"
           style={{ borderColor: 'var(--color-border)' }}>
-          <span className="text-[9px] uppercase tracking-widest flex-shrink-0" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>
-            Инстансы:
-          </span>
-          {instances.map(inst => (
-            <div key={inst.id} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 flex-shrink-0 border"
-              style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}>
-              {inst.iconUrl && (
-                <img src={inst.iconUrl} className="w-4 h-4 rounded object-cover" alt=""
-                  onError={e => { (e.target as any).style.display = 'none'; }} />
-              )}
-              <span className="text-[10px] whitespace-nowrap" style={{ color: 'var(--color-text)' }}>{inst.name}</span>
-              <span className="text-[9px]" style={{ color: 'var(--color-text-dim)' }}>{inst.gameVersion}</span>
-              <button
-                onClick={() => window.ipcRenderer.send('launch-game', { nickname, instanceId: inst.id })}
-                className="w-5 h-5 flex items-center justify-center rounded border transition-all ml-0.5"
-                style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}
-                title="Запустить">
-                <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              </button>
-              <button
-                onClick={() => window.ipcRenderer.invoke('remove-instance', inst.id)
-                  .then(() => setInstances(prev => prev.filter(i => i.id !== inst.id)))}
-                className="w-5 h-5 flex items-center justify-center rounded transition-all"
-                style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f87171'; (e.currentTarget as HTMLElement).style.opacity = '1'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-text-dim)'; (e.currentTarget as HTMLElement).style.opacity = '0.4'; }}
-                title="Удалить">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+          <button
+            onClick={() => setSelectedCategory('')}
+            className="px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider flex-shrink-0 border transition-all"
+            style={{
+              backgroundColor: !selectedCategory ? 'var(--color-brand)' : 'var(--color-bg-elevated)',
+              borderColor: !selectedCategory ? 'var(--color-brand)' : 'var(--color-border)',
+              color: !selectedCategory ? 'var(--color-bg)' : 'var(--color-text-dim)',
+            }}>
+            Все
+          </button>
+          {categories.map(cat => (
+            <button key={cat.name} onClick={() => setSelectedCategory(selectedCategory === cat.name ? '' : cat.name)}
+              className="px-2.5 py-1 rounded-lg text-[9px] font-medium capitalize flex-shrink-0 border transition-all"
+              style={{
+                backgroundColor: selectedCategory === cat.name ? 'var(--color-brand-dim)' : 'var(--color-bg-elevated)',
+                borderColor: selectedCategory === cat.name ? 'var(--color-brand)' : 'var(--color-border)',
+                color: selectedCategory === cat.name ? 'var(--color-brand)' : 'var(--color-text-dim)',
+              }}>
+              {cat.name}
+            </button>
           ))}
         </div>
       )}
+
+      {/* Stats + Instances */}
+      {(!loading && totalHits > 0) || instances.length > 0 ? (
+        <div className="flex items-center justify-between px-5 border-b flex-shrink-0 overflow-x-auto"
+          style={{ borderColor: 'var(--color-border)', minHeight: '32px' }}>
+          {!loading && totalHits > 0 && (
+            <span className="text-[9px] uppercase tracking-widest py-2" style={{ color: 'var(--color-text-dim)', opacity: 0.4, flexShrink: 0 }}>
+              {formatNumber(totalHits)} проектов{debouncedSearch ? ` по «${debouncedSearch}»` : ''}{selectedCategory ? ` • ${selectedCategory}` : ''}
+            </span>
+          )}
+          {instances.length > 0 && (
+            <div className="flex items-center gap-1.5 py-1.5 ml-auto">
+              <span className="text-[9px] uppercase tracking-widest flex-shrink-0" style={{ color: 'var(--color-text-dim)', opacity: 0.3 }}>
+                Инстансы:
+              </span>
+              {instances.map(inst => (
+                <div key={inst.id} className="flex items-center gap-1 rounded-lg px-2 py-0.5 flex-shrink-0 border"
+                  style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)' }}>
+                  {inst.iconUrl && (
+                    <img src={inst.iconUrl} className="w-3.5 h-3.5 rounded object-cover" alt=""
+                      onError={e => { (e.target as any).style.display = 'none'; }} />
+                  )}
+                  <span className="text-[9px] whitespace-nowrap" style={{ color: 'var(--color-text)' }}>{inst.name}</span>
+                  <span className="text-[8px]" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>{inst.gameVersion}</span>
+                  <button onClick={() => window.ipcRenderer.send('launch-game', { nickname, instanceId: inst.id })}
+                    className="w-4 h-4 flex items-center justify-center rounded border transition-all"
+                    style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}>
+                    <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
+                  <button
+                    onClick={() => window.ipcRenderer.invoke('remove-instance', inst.id)
+                      .then(() => setInstances(prev => prev.filter(i => i.id !== inst.id)))}
+                    className="w-4 h-4 flex items-center justify-center rounded transition-all"
+                    style={{ color: 'var(--color-text-dim)', opacity: 0.3 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f87171'; (e.currentTarget as HTMLElement).style.opacity = '1'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-text-dim)'; (e.currentTarget as HTMLElement).style.opacity = '0.3'; }}>
+                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
@@ -654,8 +791,7 @@ export default function ContentPage({ nickname }: { nickname: string }) {
                   className="px-5 py-2 rounded-xl text-[10px] border transition-all disabled:opacity-40"
                   style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)', color: 'var(--color-text-dim)' }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-brand)'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)'}
-                >
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--color-border)'}>
                   {loading ? 'Загрузка...' : `Ещё (${formatNumber(totalHits - projects.length)})`}
                 </button>
               </div>
@@ -666,17 +802,20 @@ export default function ContentPage({ nickname }: { nickname: string }) {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[998] rounded-xl px-4 py-2 text-[11px] shadow-2xl border animate-in fade-in slide-in-from-bottom-2 duration-200 whitespace-nowrap"
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[998] rounded-xl px-4 py-2 text-[11px] shadow-2xl border whitespace-nowrap"
           style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)', color: 'var(--color-text-dim)' }}>
           {toast}
         </div>
       )}
 
       {selectedProject && !installProgress && (
-        <VersionModal project={selectedProject} instances={instances}
+        <ProjectDetailPanel
+          project={selectedProject}
+          instances={instances}
           onClose={() => setSelectedProject(null)}
           onInstallMod={handleInstallMod}
-          onInstallModpack={handleInstallModpack} />
+          onInstallModpack={handleInstallModpack}
+        />
       )}
       {installProgress && (
         <ModpackProgressModal progress={installProgress} projectName={installingProject}

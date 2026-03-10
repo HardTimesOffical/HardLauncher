@@ -96,9 +96,10 @@ function App() {
   const isDownloaded = currentVersionObj?.isDownloaded;
 
   const bgImages = [
-    'https://cdna.artstation.com/p/assets/images/images/042/400/684/large/mariana-salimena-swamp-artstation.jpg?1634406914',
-    'https://cdnb.artstation.com/p/assets/images/images/042/400/679/large/mariana-salimena-birch-forest-artstation.jpg?1634406904',
-    'https://cdna.artstation.com/p/assets/images/images/042/400/690/large/mariana-salimena-swamp-b-artstation.jpg?1634406924'
+    '/banners/bg1.jpg',
+    '/banners/bg2.jpg',
+    '/banners/bg3.jpg',
+    '/banners/bg5.jpg'
   ];
 
 
