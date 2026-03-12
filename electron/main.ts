@@ -580,6 +580,7 @@ ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
 // ======================================================
 function createWindow() {
   win = new BrowserWindow({
+    title: 'HardLauncher',
     icon: path.join(__dirname, '../public/icon.ico'),
     width: 1000, 
     height: 650, 

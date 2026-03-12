@@ -2,12 +2,12 @@ import "electron";
 import "node:url";
 import "node:path";
 import "node:fs";
-import { R, V, s } from "./main-CYtCEDBm.js";
+import { R as a, V as e, s as V } from "./main-0wBDmzOS.js";
 import "fs";
 import "path";
 import "node:crypto";
 export {
-  R as RENDERER_DIST,
-  V as VITE_DEV_SERVER_URL,
-  s as setupSettingsHandlers
+  a as RENDERER_DIST,
+  e as VITE_DEV_SERVER_URL,
+  V as setupSettingsHandlers
 };
