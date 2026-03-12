@@ -190,4 +190,5 @@ function findInstalledId(gamePath: string, gameVersion: string, isNeo: boolean):
   // Forge создаёт "1.21.1-forge-52.0.47"
   const parts = gameVersion.split('.');
   return dirs.find(d => d.startsWith(gameVersion) && d.toLowerCase().includes('forge')) || null;
+  parts
 }
