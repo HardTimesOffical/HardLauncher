@@ -67,6 +67,7 @@ export const createGameLauncher = (webContents: any, isVanilla: boolean) => {
 
   launcher.on('arguments', (data: any) => {
     // MCLC не отдаёт процесс напрямую, но можно перехватить через 'data' первый раз
+    data
   });
 
   runningGameProcess = launcher.child; // MCLC хранит child process здесь
