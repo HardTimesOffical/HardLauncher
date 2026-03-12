@@ -4,6 +4,8 @@ const require = createRequire(import.meta.url);
 const MCLC = require('minecraft-launcher-core');
 const LauncherClient = MCLC.Client;
 
+let runningGameProcess: any = null;
+
 export const createGameLauncher = (webContents: any, isVanilla: boolean) => {
   const launcher = new LauncherClient();
 
@@ -62,6 +64,13 @@ export const createGameLauncher = (webContents: any, isVanilla: boolean) => {
     webContents.send('download-progress', null);
     webContents.send('game-closed', code); 
   });
+
+  launcher.on('arguments', (data: any) => {
+    // MCLC не отдаёт процесс напрямую, но можно перехватить через 'data' первый раз
+  });
+
+  runningGameProcess = launcher.child; // MCLC хранит child process здесь
+  console.log('[Launch] Процесс сохранён, PID:', runningGameProcess?.pid);
 
   return launcher;
 };

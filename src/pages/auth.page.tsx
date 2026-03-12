@@ -106,7 +106,7 @@ const AuthPage = ({ onLoginSuccess }: AuthPageProps) => {
 
       {/* Шапка */}
       <div className="px-6 pt-6 pb-4 border-b border-[var(--color-border)]">
-        <h2 className="text-sm font-bold text-[var(--color-text)] mb-0.5 font-mc-title uppercase tracking-tight">
+        <h2 className="text-sm font-bold text-[var(--color-text)] mb-0.5  uppercase tracking-tight">
           {provider === 'ely' ? 'Войти через Ely.by' :
             mode === 'login' ? 'Вход в аккаунт' : 'Регистрация'}
         </h2>

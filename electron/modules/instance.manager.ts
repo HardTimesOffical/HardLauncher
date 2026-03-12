@@ -5,7 +5,7 @@ import { isVersionDownloaded } from './path.manager';
 export interface GameInstance {
   id: string;           // уникальный id (slug модпака или uuid)
   name: string;         // отображаемое имя
-  type: 'vanilla' | 'fabric' | 'forge' | 'modpack';
+  type: 'vanilla' | 'fabric' | 'forge' | 'neoforge' |'modpack';
   gameVersion: string;  // версия MC
   loaderVersion?: string;
   iconUrl?: string;
@@ -86,9 +86,11 @@ export class InstanceManager {
     if (!instance) return false;
     
     // Проверяем установлен ли загрузчик (fabric/forge jar)
-    const loaderId = instance.loaderVersion 
-      ? `fabric-latest-${instance.gameVersion}` // или forge
-      : instance.gameVersion;
+    const loaderId = instance.loaderVersion
+    ? instance.type === 'forge'
+      ? `forge-${instance.gameVersion}`
+      : `fabric-latest-${instance.gameVersion}`
+    : instance.gameVersion;
     
     return isVersionDownloaded(loaderId, gamePath);
   }

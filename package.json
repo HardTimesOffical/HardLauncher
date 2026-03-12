@@ -30,7 +30,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Hard Monitoring"
+      "shortcutName": "HardLauncher"
     },
     "publish": {
       "provider": "github",

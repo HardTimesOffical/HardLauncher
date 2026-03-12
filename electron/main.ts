@@ -22,6 +22,7 @@ import { installModpack } from './modules/modpack.installer';
 import { installMod, removeMod, getInstalledMods } from './modules/mod.installer';
 
 gracefulFs.gracefulify(fs)
+let runningGameProcess: any = null;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -119,9 +120,45 @@ async function getFabricProfile(minecraftVersion: string, loaderVersion: string)
     return await response.json();
 }
 
-// ======================================================
-// LAUNCH VANILLA
-// ======================================================
+function findLibJar(lib: string, relPath: string): string {
+  const dir = path.join(lib, relPath);
+  if (!fs.existsSync(dir)) {
+    console.warn(`[findLibJar] MISSING: ${dir}`);
+    return path.join(dir, 'NOTFOUND.jar');
+  }
+
+  const versions = fs.readdirSync(dir)
+    .filter(f => fs.statSync(path.join(dir, f)).isDirectory())
+    .sort((a, b) => {
+      // Сортируем по версии — берём наибольшую
+      const partsA = a.split('.').map(n => parseInt(n) || 0);
+      const partsB = b.split('.').map(n => parseInt(n) || 0);
+      for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+        const diff = (partsB[i] || 0) - (partsA[i] || 0);
+        if (diff !== 0) return diff;
+      }
+      return 0;
+    });
+
+  for (const ver of versions) {
+    const verDir = path.join(dir, ver);
+    const files = fs.readdirSync(verDir);
+    const jar = files.find(f => 
+      f.endsWith('.jar') && 
+      !f.includes('-sources') && 
+      !f.includes('-api') &&
+      !f.includes('-natives')
+    );
+    if (jar) {
+      console.log(`[findLibJar] ${relPath} → ${ver}/${jar}`);
+      return path.join(verDir, jar);
+    }
+  }
+
+  console.warn(`[findLibJar] NO JAR IN: ${dir}`);
+  return path.join(dir, 'NOTFOUND.jar');
+}
+
 // ======================================================
 // LAUNCH VANILLA
 // ======================================================
@@ -157,6 +194,16 @@ async function launchVanilla(
       `-Dminecraft.launcher.version=1.0.0`
     );
 
+    const minorVer = parseInt(mcVersion.split('.')[1]);
+
+    // Для 1.17 нужны дополнительные JVM аргументы
+    if (minorVer === 17) {
+      jvmArgs.push(
+        '-Dorg.lwjgl.util.Debug=true',           // покажет ошибки LWJGL в логах
+        '-Dorg.lwjgl.util.DebugLoader=true',
+      );
+    }
+    
     let cleanIp = serverIp;
     if (cleanIp?.startsWith('{')) {
       try { cleanIp = JSON.parse(cleanIp).java; } catch { }
@@ -186,6 +233,7 @@ async function launchVanilla(
       customArgs: jvmArgs,
       overrides: {
         assetIndex: mcVersion,
+        natives: path.join(config.gamePath, 'natives', mcVersion),
         ...(gameArgs.length > 0 ? { gameArgs } : {})
       }
     };
@@ -205,7 +253,14 @@ async function launchVanilla(
       webContents,
       !fs.existsSync(path.join(config.gamePath, 'versions', mcVersion))
     );
+
+    const jarPath = path.join(config.gamePath, 'versions', mcVersion, `${mcVersion}.jar`);
+    if (fs.existsSync(jarPath) && fs.statSync(jarPath).size > 1000) {
+      console.log(`[Launch] jar уже есть (${Math.round(fs.statSync(jarPath).size / 1024)}KB)`);
+    }
+    
     await launcher.launch(opts);
+    runningGameProcess = launcher.child;
 
   } catch (err: any) {
     console.error('[LaunchVanilla Error]', err);
@@ -267,9 +322,9 @@ async function launchCustom(
       min: "1G",
       max: `${config.ram}G`
     },
+    customArgs: extraArgs,
     overrides: {
       detached: true,
-      extraArgs,
       ...(instanceDir ? { gameDirectory: instanceDir } : {})
     },
     skipAsync: true
@@ -284,6 +339,7 @@ async function launchCustom(
 
   const launcher = createGameLauncher(webContents, !isReady);
   await launcher.launch(opts);
+  runningGameProcess = launcher.child;
 }
 
 // ======================================================
@@ -297,7 +353,8 @@ async function launchForge(
   auth?: IUser,
   instanceDir?: string
 ) {
-  const { gameVersion, loaderVersion } = versionObj;
+  const { gameVersion, loaderVersion, type } = versionObj;
+  const isNeoForge = type === 'neoforge';
   const config = ConfigManager.load();
 
   const javaPath = await ensureJava(
@@ -307,12 +364,9 @@ async function launchForge(
   );
 
   const forgeVersionId = await installForge(
-    gameVersion,
-    loaderVersion,
-    config.gamePath,
-    javaPath,
-    webContents
-  );
+      gameVersion, loaderVersion, config.gamePath, javaPath, webContents,
+      isNeoForge  // ← передаём
+ );
 
   const lib = path.join(config.gamePath, 'libraries');
   const sep = path.delimiter;
@@ -327,27 +381,56 @@ async function launchForge(
   ];
 
   if (needsModulePath) {
-    customArgs.push(
-      `-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,fmlcore,javafmllanguage,lowcodelanguage,mclanguage,forge-,${forgeVersionId}.jar`,
-      `-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar`,
-      `-DlibraryDirectory=${lib}`,
-      `-p`,
-      [
-        `${lib}/cpw/mods/bootstraplauncher/1.1.2/bootstraplauncher-1.1.2.jar`,
-        `${lib}/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar`,
-        `${lib}/org/ow2/asm/asm-commons/9.8/asm-commons-9.8.jar`,
-        `${lib}/org/ow2/asm/asm-util/9.8/asm-util-9.8.jar`,
-        `${lib}/org/ow2/asm/asm-analysis/9.8/asm-analysis-9.8.jar`,
-        `${lib}/org/ow2/asm/asm-tree/9.8/asm-tree-9.8.jar`,
-        `${lib}/org/ow2/asm/asm/9.8/asm-9.8.jar`,
-        `${lib}/net/minecraftforge/JarJarFileSystems/0.3.19/JarJarFileSystems-0.3.19.jar`,
-      ].join(sep),
-      `--add-modules`, `ALL-MODULE-PATH`,
-      `--add-opens`, `java.base/java.util.jar=cpw.mods.securejarhandler`,
-      `--add-opens`, `java.base/java.lang.invoke=cpw.mods.securejarhandler`,
-      `--add-exports`, `java.base/sun.security.util=cpw.mods.securejarhandler`,
-      `--add-exports`, `jdk.naming.dns/com.sun.jndi.dns=java.naming`,
-    );
+      if (isNeoForge) {
+        const modulePaths = [
+          findLibJar(lib, 'cpw/mods/bootstraplauncher'),
+          findLibJar(lib, 'cpw/mods/securejarhandler'),
+          findLibJar(lib, 'org/ow2/asm/asm-commons'),
+          findLibJar(lib, 'org/ow2/asm/asm-util'),
+          findLibJar(lib, 'org/ow2/asm/asm-analysis'),
+          findLibJar(lib, 'org/ow2/asm/asm-tree'),
+          findLibJar(lib, 'org/ow2/asm/asm'),
+          findLibJar(lib, 'net/neoforged/JarJarFileSystems'),
+        ];
+        
+        console.log('[NeoForge] Module paths:');
+        modulePaths.forEach(p => console.log('  -', p, fs.existsSync(p) ? 'OK' : 'MISSING!'));
+        
+        customArgs.push(
+        `-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,neoforge-,${forgeVersionId}.jar`,
+        `-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar`,
+        `-DlibraryDirectory=${lib}`,
+        `-p`, modulePaths.join(sep),
+        `--add-modules`, `ALL-MODULE-PATH`,
+        `--add-opens`, `java.base/java.util.jar=cpw.mods.securejarhandler`,
+        `--add-opens`, `java.base/java.lang.invoke=cpw.mods.securejarhandler`,
+        `--add-exports`, `java.base/sun.security.util=cpw.mods.securejarhandler`,
+        `--add-exports`, `jdk.naming.dns/com.sun.jndi.dns=java.naming`,
+      );
+      } else {
+      // Обычный Forge
+      customArgs.push(
+        `-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,fmlcore,javafmllanguage,lowcodelanguage,mclanguage,forge-,${forgeVersionId}.jar`,
+        `-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar`,
+        `-DlibraryDirectory=${lib}`,
+        `-p`,
+        [
+          `${lib}/cpw/mods/bootstraplauncher/1.1.2/bootstraplauncher-1.1.2.jar`,
+          `${lib}/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar`,
+          `${lib}/org/ow2/asm/asm-commons/9.8/asm-commons-9.8.jar`,
+          `${lib}/org/ow2/asm/asm-util/9.8/asm-util-9.8.jar`,
+          `${lib}/org/ow2/asm/asm-analysis/9.8/asm-analysis-9.8.jar`,
+          `${lib}/org/ow2/asm/asm-tree/9.8/asm-tree-9.8.jar`,
+          `${lib}/org/ow2/asm/asm/9.8/asm-9.8.jar`,
+          `${lib}/net/minecraftforge/JarJarFileSystems/0.3.19/JarJarFileSystems-0.3.19.jar`,
+        ].join(sep),
+        `--add-modules`, `ALL-MODULE-PATH`,
+        `--add-opens`, `java.base/java.util.jar=cpw.mods.securejarhandler`,
+        `--add-opens`, `java.base/java.lang.invoke=cpw.mods.securejarhandler`,
+        `--add-exports`, `java.base/sun.security.util=cpw.mods.securejarhandler`,
+        `--add-exports`, `jdk.naming.dns/com.sun.jndi.dns=java.naming`,
+      );
+    }
   }
 
   const injectorPath = await ensureInjector(config.gamePath, webContents);
@@ -375,6 +458,7 @@ async function launchForge(
 
   const launcher = createGameLauncher(webContents, false);
   await launcher.launch(opts);
+  runningGameProcess = launcher.child;
 }
 // ======================================================
 // 4. ГЛАВНЫЙ IPC ВХОД
@@ -391,6 +475,16 @@ ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
 
   let authServerUrl = '';
   let userAuth: IUser;
+
+      if (runningGameProcess) {
+          try {
+            runningGameProcess.kill('SIGKILL');
+            console.log('[Launch] Предыдущий процесс завершён');
+          } catch (e) {
+            console.error('[Launch] Не удалось завершить процесс:', e);
+          }
+          runningGameProcess = null;
+      }
 
     if (account && account.provider === 'microsoft' && account.mclcToken) {
       try {
@@ -428,18 +522,34 @@ ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
 
       const instanceDir = instanceManager.getInstanceDir(instanceId);
       instanceManager.updateLastPlayed(instanceId);
+      let loaderVersion = instance.loaderVersion
+      ;
+      if (loaderVersion && (instance.type === 'forge' || instance.type === 'neoforge') 
+          && !loaderVersion.includes(instance.gameVersion)) {
+        loaderVersion = `${instance.gameVersion}-${loaderVersion}`;
+      }
+
 
       // Формируем фейковый versionObj из данных инстанса
       const versionObj = {
         id: `fabric-latest-${instance.gameVersion}`,
-        type: instance.type === 'modpack' ? 'fabric' : instance.type,
+        type: (() => {
+          if (instance.type === 'neoforge') return 'neoforge';
+          if (instance.type === 'forge') return 'forge';
+          if (instance.type === 'fabric') return 'fabric';
+          if (instance.type === 'modpack') {
+            // Определяем по loaderVersion если тип modpack
+            if (instance.loaderVersion?.includes('neoforge')) return 'neoforge';
+            return 'fabric';
+          }
+          return 'fabric';
+        })(),
         gameVersion: instance.gameVersion,
-        loaderVersion: instance.loaderVersion,
+        loaderVersion,
       };
 
-      if (versionObj.type === 'forge') {
-        const forgeObj = { ...versionObj, type: 'forge' };
-        await launchForge(forgeObj, nickname, webContents, authServerUrl, userAuth, instanceDir);
+      if (versionObj.type === 'forge' || versionObj.type === 'neoforge') {
+        await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth, instanceDir);
       } else {
         await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth, instanceDir);
       }
@@ -451,8 +561,8 @@ ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
     if (!versionObj) throw new Error(`Версия ${version} не найдена!`);
     const mcVersion = versionObj.gameVersion || versionObj.id;
 
-    if (versionObj.type === 'forge') {
-      await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth);
+    if (versionObj.type === 'forge' || versionObj.type === 'neoforge') {
+      await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth); // убрал instanceDir
     } else if (versionObj.type === 'fabric' || versionObj.type === 'custom') {
       await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth);
     } else {
@@ -470,6 +580,7 @@ ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
 // ======================================================
 function createWindow() {
   win = new BrowserWindow({
+    icon: path.join(__dirname, '../public/icon.ico'),
     width: 1000, 
     height: 650, 
     frame: false, 

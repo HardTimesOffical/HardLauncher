@@ -35,7 +35,7 @@ const ServerList = () => {
   return (
     <div className="flex flex-col w-[380px] select-none animate-in fade-in duration-500">
       
-      {/* ШАПКА — ультракомпактная */}
+      {/* ШАПКА */}
       <div className="px-3 py-1 bg-black/50 backdrop-blur-md rounded-t-lg border-t border-x border-white/10 flex justify-between items-center">
         <span className="text-[7px] font-black uppercase tracking-[0.3em] text-white/20">Мониторинг</span>
         <div className="w-1 h-1 rounded-full bg-[var(--color-brand)] opacity-40" />
@@ -44,7 +44,28 @@ const ServerList = () => {
       {/* СПИСОК */}
       <div className="flex flex-col gap-1 mt-1">
         {loading ? (
-          <div className="py-4 text-center text-[7px] text-white/10 uppercase tracking-widest">Загрузка...</div>
+          Array.from({ length: 10 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded border border-white/[0.03] overflow-hidden"
+              style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+            >
+              <div className="flex items-center gap-2 px-2 py-1">
+                {/* номер */}
+                <div className="w-3 h-2 rounded-sm bg-white/[0.04] animate-pulse" />
+                {/* название — разная ширина для реализма */}
+                <div
+                  className="h-2 rounded-sm bg-white/[0.06] animate-pulse"
+                  style={{ width: `${55 + (i * 13) % 35}%`, animationDelay: `${i * 60}ms` }}
+                />
+                {/* версия */}
+                <div
+                  className="ml-auto w-7 h-3.5 rounded bg-white/[0.04] animate-pulse"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                />
+              </div>
+            </div>
+          ))
         ) : (
           servers.map((server, index) => (
             <div
@@ -57,7 +78,6 @@ const ServerList = () => {
                 borderColor: hoveredId === server._id ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.03)'
               }}
             >
-              {/* ОСНОВНАЯ СТРОКА (высота уменьшена) */}
               <div className="flex items-center gap-2 px-2 py-1">
                 <span className="text-[7px] font-mono text-white/10 w-3">{String(index + 1).padStart(2, '0')}</span>
                 
@@ -74,7 +94,6 @@ const ServerList = () => {
                 </div>
               </div>
 
-              {/* ПАНЕЛЬ ДЕЙСТВИЙ */}
               <div className={`flex border-t border-white/5 bg-black/60 transition-all duration-200 ease-out ${
                 hoveredId === server._id ? 'max-h-[28px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
               }`}>
@@ -102,7 +121,7 @@ const ServerList = () => {
         )}
       </div>
 
-      {/* ФУТЕР — КНОПКИ УПРАВЛЕНИЯ */}
+      {/* ФУТЕР */}
       <div className="grid grid-cols-3 gap-1 mt-2">
         <button 
           className="py-2 rounded-l-lg bg-[#222] border border-white/10 text-[8px] font-black uppercase tracking-wider text-white/70 hover:bg-[#333] transition-all active:scale-95"
@@ -118,7 +137,7 @@ const ServerList = () => {
         </button>
         <button 
           className="py-2 rounded-r-lg bg-[var(--color-brand)] border border-white/20 text-[8px] font-black uppercase tracking-wider text-black hover:brightness-110 transition-all shadow-[0_0_15px_rgba(var(--color-brand-rgb),0.2)] active:scale-95"
-          onClick={() => {/* Логика автодобавления */}}
+          onClick={() => {/* Автодобавление */}}
         >
           Автодобавление
         </button>

@@ -3,13 +3,13 @@ import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 
 const FORGE_MAVEN = 'https://maven.minecraftforge.net/net/minecraftforge/forge';
+const NEOFORGE_MAVEN = 'https://maven.neoforged.net/releases/net/neoforged/neoforge';
 
 function getForgeInstallerInfo(gameVersion: string, loaderVersion: string): { url: string; name: string } {
   const parts = gameVersion.split('.');
   const minor = parseInt(parts[1]);
   const patch = parseInt(parts[2] || '0');
 
-  // 1.7.x - 1.11.x и 1.12.0, 1.12.1 — legacy формат с суффиксом версии игры
   const isLegacy = minor < 12 || (minor === 12 && patch < 2);
 
   if (isLegacy) {
@@ -18,10 +18,35 @@ function getForgeInstallerInfo(gameVersion: string, loaderVersion: string): { ur
     return { url, name };
   }
 
-  // 1.12.2+ — стандартный формат
   const name = `forge-${gameVersion}-${loaderVersion}-installer.jar`;
   const url = `${FORGE_MAVEN}/${gameVersion}-${loaderVersion}/${name}`;
   return { url, name };
+}
+
+function getInstallerInfo(gameVersion: string, loaderVersion: string, isNeo: boolean): { url: string; name: string } {
+  if (isNeo) {
+    // loaderVersion может быть "1.21.1-21.1.215" или просто "21.1.215"
+    let neoVer = loaderVersion;
+    if (loaderVersion.includes(`${gameVersion}-`)) {
+      neoVer = loaderVersion.split(`${gameVersion}-`)[1];
+    } else if (loaderVersion.includes('-')) {
+      neoVer = loaderVersion.split('-').slice(1).join('-');
+    }
+    const name = `neoforge-${neoVer}-installer.jar`;
+    const url = `${NEOFORGE_MAVEN}/${neoVer}/${name}`;
+    return { url, name };
+  }
+  return getForgeInstallerInfo(gameVersion, loaderVersion);
+}
+
+function extractNeoVer(gameVersion: string, loaderVersion: string): string {
+  if (loaderVersion.includes(`${gameVersion}-`)) {
+    return loaderVersion.split(`${gameVersion}-`)[1];
+  }
+  if (loaderVersion.includes('-')) {
+    return loaderVersion.split('-').slice(1).join('-');
+  }
+  return loaderVersion;
 }
 
 export async function installForge(
@@ -29,43 +54,48 @@ export async function installForge(
   loaderVersion: string,
   gamePath: string,
   javaPath: string,
-  webContents: Electron.WebContents
+  webContents: Electron.WebContents,
+  isNeoForge = false
 ): Promise<string> {
-  const forgeId = `${gameVersion}-forge-${loaderVersion}`;
-  const versionDir = path.join(gamePath, 'versions', forgeId);
-  const jsonPath = path.join(versionDir, `${forgeId}.json`);
+  const prefix = isNeoForge ? 'neoforge' : 'forge';
 
-  // Уже установлен
+  // NeoForge installer создаёт папку "neoforge-21.1.215"
+  // Forge installer создаёт папку "1.21.1-forge-52.0.47"
+  const expectedId = isNeoForge
+    ? `neoforge-${extractNeoVer(gameVersion, loaderVersion)}`
+    : `${gameVersion}-forge-${loaderVersion}`;
+
+  const versionDir = path.join(gamePath, 'versions', expectedId);
+  const jsonPath = path.join(versionDir, `${expectedId}.json`);
+
   if (fs.existsSync(jsonPath)) {
-    console.log(`[Forge] Уже установлен: ${forgeId}`);
-    return forgeId;
+    console.log(`[${prefix}] Уже установлен: ${expectedId}`);
+    return expectedId;
   }
 
   fs.mkdirSync(versionDir, { recursive: true });
 
-  const { url: installerUrl, name: installerName } = getForgeInstallerInfo(gameVersion, loaderVersion);
+  const { url: installerUrl, name: installerName } = getInstallerInfo(gameVersion, loaderVersion, isNeoForge);
   const installerPath = path.join(gamePath, 'forge-installers', installerName);
 
   fs.mkdirSync(path.join(gamePath, 'forge-installers'), { recursive: true });
 
   if (!fs.existsSync(installerPath)) {
-    webContents.send('launch-status', `Скачивание Forge ${gameVersion}...`);
-    console.log(`[Forge] Скачиваем installer: ${installerUrl}`);
+    webContents.send('launch-status', `Скачивание ${prefix} ${gameVersion}...`);
+    console.log(`[${prefix}] Скачиваем installer: ${installerUrl}`);
     await downloadFile(installerUrl, installerPath, webContents);
   }
 
-  // Запускаем installer
-  webContents.send('launch-status', `Установка Forge ${gameVersion}...`);
+  webContents.send('launch-status', `Установка ${prefix} ${gameVersion}...`);
   await runForgeInstaller(installerPath, javaPath, gamePath, webContents);
 
-  // Ищем созданную папку версии
-  const forgeVersionId = findInstalledForgeId(gamePath, gameVersion);
-  if (!forgeVersionId) {
-    throw new Error(`Forge установлен но папка версии не найдена для ${gameVersion}`);
+  const installedId = findInstalledId(gamePath, gameVersion, isNeoForge);
+  if (!installedId) {
+    throw new Error(`${prefix} установлен но папка версии не найдена для ${gameVersion}`);
   }
 
-  console.log(`[Forge] Успешно установлен: ${forgeVersionId}`);
-  return forgeVersionId;
+  console.log(`[${prefix}] Успешно установлен: ${installedId}`);
+  return installedId;
 }
 
 async function downloadFile(
@@ -75,7 +105,7 @@ async function downloadFile(
 ): Promise<void> {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Ошибка загрузки Forge: ${response.status} ${url}`);
+    throw new Error(`Ошибка загрузки: ${response.status} ${url}`);
   }
 
   const total = Number(response.headers.get('content-length') || 0);
@@ -129,7 +159,7 @@ function runForgeInstaller(
       const line = data.toString().trim();
       if (line) {
         console.log(`[Forge Installer] ${line}`);
-        webContents.send('launch-status', `Forge: ${line.slice(0, 60)}`);
+        webContents.send('launch-status', `Установка: ${line.slice(0, 60)}`);
       }
     });
 
@@ -138,24 +168,26 @@ function runForgeInstaller(
     });
 
     proc.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`Forge installer завершился с кодом ${code}`));
-      }
+      if (code === 0) resolve();
+      else reject(new Error(`Installer завершился с кодом ${code}`));
     });
 
     proc.on('error', reject);
   });
 }
 
-function findInstalledForgeId(gamePath: string, gameVersion: string): string | null {
+function findInstalledId(gamePath: string, gameVersion: string, isNeo: boolean): string | null {
   const versionsDir = path.join(gamePath, 'versions');
   if (!fs.existsSync(versionsDir)) return null;
 
   const dirs = fs.readdirSync(versionsDir);
-  const forgeDir = dirs.find(d =>
-    d.startsWith(gameVersion) && d.toLowerCase().includes('forge')
-  );
-  return forgeDir || null;
+
+  if (isNeo) {
+    // NeoForge создаёт "neoforge-21.1.215"
+    return dirs.find(d => d.toLowerCase().startsWith('neoforge-')) || null;
+  }
+
+  // Forge создаёт "1.21.1-forge-52.0.47"
+  const parts = gameVersion.split('.');
+  return dirs.find(d => d.startsWith(gameVersion) && d.toLowerCase().includes('forge')) || null;
 }

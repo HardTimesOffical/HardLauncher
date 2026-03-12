@@ -87,6 +87,8 @@ export async function installModpack(
 
   try {
     // 1. Скачать .mrpack файл
+
+    
     onProgress({ stage: 'downloading_mrpack', message: `Скачивание ${projectName}...`, percent: 5 });
     const mrpackBuffer = await downloadToBuffer(mrpackUrl);
 
@@ -109,10 +111,16 @@ export async function installModpack(
       loaderVersion = index.dependencies['fabric-loader'];
     } else if (index.dependencies['neoforge']) {
       loaderType = 'neoforge';
-      loaderVersion = index.dependencies['neoforge'];
+      const rawNeo = index.dependencies['neoforge'];
+      loaderVersion = rawNeo.includes(mcVersion) ? rawNeo : `${mcVersion}-${rawNeo}`;
     } else if (index.dependencies['forge']) {
       loaderType = 'forge';
-      loaderVersion = index.dependencies['forge'];
+      const rawForge = index.dependencies['forge'];
+      loaderVersion = rawForge.includes(mcVersion) ? rawForge : `${mcVersion}-${rawForge}`;
+    } else if (index.dependencies['neoforge']) {
+          loaderType = 'neoforge';
+          const rawNeo = index.dependencies['neoforge'];
+          loaderVersion = rawNeo.includes(mcVersion) ? rawNeo : `${mcVersion}-${rawNeo}`;
     }
 
     // 4. Создаём инстанс
@@ -187,6 +195,13 @@ export async function installModpack(
       modrinthVersionId: versionId,
     };
     instanceManager.save(instance);
+
+    const remappedJarsDir = path.join(instanceDir, 'fabric', 'remappedJars');
+    if (fs.existsSync(remappedJarsDir)) {
+      fs.rmSync(remappedJarsDir, { recursive: true, force: true });
+    }
+
+    onProgress({ stage: 'done', message: `${projectName} установлен!`, percent: 100 });
 
     onProgress({ stage: 'done', message: `${projectName} установлен!`, percent: 100 });
     return instanceId;
