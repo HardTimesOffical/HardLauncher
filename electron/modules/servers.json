@@ -1,6 +1,11 @@
 [
   {
     "name": "HardTimes",
-    "ip": "play.HardTime.fun:25565"
+    "ip": "play.HardTime.fun"
+  },
+  
+  {
+    "name": "Sakura",
+    "ip": "play.sakura-mc.ru"
   }
 ]

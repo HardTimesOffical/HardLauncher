@@ -253,6 +253,8 @@ async function launchVanilla(
       webContents,
       !fs.existsSync(path.join(config.gamePath, 'versions', mcVersion))
     );
+    
+    await syncServers(config.gamePath);
 
     const jarPath = path.join(config.gamePath, 'versions', mcVersion, `${mcVersion}.jar`);
     if (fs.existsSync(jarPath) && fs.statSync(jarPath).size > 1000) {

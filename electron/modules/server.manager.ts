@@ -53,46 +53,132 @@ async function downloadFile(url: string, dest: string, webContents: any, label: 
 export const syncServers = async (gamePath: string) => {
   const serversPath = path.join(gamePath, 'servers.dat');
   const REMOTE_SERVERS_URL = "https://s3.twcstorage.ru/25f7f6a6-e7bd-4e1a-b0ff-5abadb3c2fcc/hardlauncher/servers.json";
-  
+
   try {
     const response = await fetch(REMOTE_SERVERS_URL, { cache: 'no-store' });
     const remoteServers: MinecraftServer[] = await response.json();
 
-    let currentData: any = { servers: [] };
-
+    // Читаем существующие IP из servers.dat если он есть
+    const existingIps = new Set<string>();
     if (fs.existsSync(serversPath)) {
       try {
-        const fileBuffer = fs.readFileSync(serversPath);
-        const decoded = nbt.decode(fileBuffer);
-        currentData = decoded.value;
-      } catch (e) {
-        console.warn('[ServerManager] servers.dat поврежден, создаем новый');
-      }
-    }
-
-    let modified = false;
-    remoteServers.forEach(remote => {
-      // Проверка: есть ли сервер уже в списке (по IP)
-      const exists = currentData.servers.some((s: any) => s.ip === remote.ip);
-      if (!exists) {
-        currentData.servers.push({
-          name: remote.name,
-          ip: remote.ip,
-          hideAddress: new nbt.Byte(0), 
+        const buf = fs.readFileSync(serversPath);
+        // Ищем все строки IP в бинарнике — просто парсим текст
+        const text = buf.toString('latin1');
+        remoteServers.forEach(s => {
+          if (text.includes(s.ip)) existingIps.add(s.ip);
         });
-        modified = true;
-      }
-    });
-
-    if (modified) {
-      const encoded = nbt.encode('root', currentData);
-      fs.writeFileSync(serversPath, Buffer.from(encoded));
-      console.log('[ServerManager] Список серверов обновлен');
+      } catch {}
     }
+
+    const toAdd = remoteServers.filter(s => !existingIps.has(s.ip));
+    if (toAdd.length === 0) {
+      console.log('[ServerManager] Все серверы уже добавлены');
+      return;
+    }
+
+    // Читаем существующие серверы из файла или начинаем с пустого
+    let existingServers: Array<{name: string, ip: string}> = [];
+    if (fs.existsSync(serversPath)) {
+      try {
+        const buf = fs.readFileSync(serversPath);
+        const decoded = nbt.decode(buf);
+        const servers = (decoded.value as any).servers || [];
+        existingServers = servers.map((s: any) => ({
+          name: typeof s.name === 'object' ? s.name.value : (s.name || ''),
+          ip: typeof s.ip === 'object' ? s.ip.value : (s.ip || ''),
+        })).filter((s: any) => s.ip);
+      } catch {}
+    }
+
+    const allServers = [...existingServers, ...toAdd];
+    
+    // Записываем servers.dat вручную в правильном NBT формате
+    const buf = writeServersDat(allServers);
+    fs.writeFileSync(serversPath, buf);
+    console.log('[ServerManager] Добавлены серверы:', toAdd.map(s => s.name).join(', '));
+
   } catch (err) {
     console.error('[ServerManager] Ошибка синхронизации серверов:', err);
   }
 };
+
+function writeServersDat(servers: Array<{name: string, ip: string}>): Buffer {
+  // Ручная запись NBT: TAG_Compound("") { TAG_List("servers") [ TAG_Compound { name, ip } ] }
+  const parts: Buffer[] = [];
+
+  // Заголовок: TAG_Compound (10), name=""
+  parts.push(tagCompoundHeader(''));
+
+  // TAG_List (9), name="servers", type=TAG_Compound (10), length
+  parts.push(tagListHeader('servers', 10, servers.length));
+
+  for (const server of servers) {
+    // Каждый элемент списка — TAG_Compound без имени
+    parts.push(tagString('name', server.name));
+    parts.push(tagString('ip', server.ip));
+    parts.push(tagString('icon', ''));
+    // hideAddress: TAG_Byte (1)
+    parts.push(tagByte('hideAddress', 0));
+    // TAG_End (0) — конец compound
+    parts.push(Buffer.from([0]));
+  }
+
+  // TAG_End — конец корневого compound
+  parts.push(Buffer.from([0]));
+
+  // Сжимаем в gzip (Minecraft читает servers.dat как gzip)
+  const raw = Buffer.concat(parts);
+  
+  // Заголовок NBT файла: TAG_Compound (10) + длина имени (0) + имя ""
+  // На самом деле Minecraft пишет без сжатия для servers.dat
+  return raw;
+}
+
+function tagCompoundHeader(name: string): Buffer {
+  const nameBuf = Buffer.from(name, 'utf8');
+  const buf = Buffer.alloc(3 + nameBuf.length);
+  buf.writeUInt8(10, 0); // TAG_Compound
+  buf.writeUInt16BE(nameBuf.length, 1);
+  nameBuf.copy(buf, 3);
+  return buf;
+}
+
+function tagListHeader(name: string, elementType: number, count: number): Buffer {
+  const nameBuf = Buffer.from(name, 'utf8');
+  const buf = Buffer.alloc(3 + nameBuf.length + 1 + 4);
+  let offset = 0;
+  buf.writeUInt8(9, offset++); // TAG_List
+  buf.writeUInt16BE(nameBuf.length, offset); offset += 2;
+  nameBuf.copy(buf, offset); offset += nameBuf.length;
+  buf.writeUInt8(elementType, offset++); // element type
+  buf.writeInt32BE(count, offset);
+  return buf;
+}
+
+function tagString(name: string, value: string): Buffer {
+  const nameBuf = Buffer.from(name, 'utf8');
+  const valueBuf = Buffer.from(value, 'utf8');
+  const buf = Buffer.alloc(3 + nameBuf.length + 2 + valueBuf.length);
+  let offset = 0;
+  buf.writeUInt8(8, offset++); // TAG_String
+  buf.writeUInt16BE(nameBuf.length, offset); offset += 2;
+  nameBuf.copy(buf, offset); offset += nameBuf.length;
+  buf.writeUInt16BE(valueBuf.length, offset); offset += 2;
+  valueBuf.copy(buf, offset);
+  return buf;
+}
+
+function tagByte(name: string, value: number): Buffer {
+  const nameBuf = Buffer.from(name, 'utf8');
+  const buf = Buffer.alloc(3 + nameBuf.length + 1);
+  let offset = 0;
+  buf.writeUInt8(1, offset++); // TAG_Byte
+  buf.writeUInt16BE(nameBuf.length, offset); offset += 2;
+  nameBuf.copy(buf, offset); offset += nameBuf.length;
+  buf.writeUInt8(value, offset);
+  return buf;
+}
 
 /**
  * Проверяет наличие инъектора для скинов и скачивает его при необходимости
