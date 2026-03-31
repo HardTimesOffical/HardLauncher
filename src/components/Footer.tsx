@@ -19,6 +19,7 @@ interface FooterProps {
   handleLaunch: () => void;
   handleResetVersion: () => void;
   openFolder: () => void;
+  onCreateInstance?: () => void; // ← новый проп
 }
 
 const Footer: React.FC<FooterProps> = ({
@@ -33,13 +34,11 @@ const Footer: React.FC<FooterProps> = ({
   isLaunching,
   handleLaunch,
   handleResetVersion,
-  openFolder
+  openFolder,
+  onCreateInstance,
 }) => {
   return (
-    // Используем overlay для футера, чтобы он был чуть темнее/отличался от основного фона
     <footer className="relative z-50 flex-shrink-0 bg-[var(--color-bg-overlay)] border-t border-[var(--color-border)] transition-colors duration-300">
-      
-      {/* Основная строка футера */}
       <div className="h-16 flex items-center px-4 gap-3">
 
         {/* АККАУНТ */}
@@ -51,12 +50,11 @@ const Footer: React.FC<FooterProps> = ({
           />
         </div>
 
-        {/* РАЗДЕЛИТЕЛЬ */}
         <div className="w-px h-8 bg-[var(--color-border)] flex-shrink-0" />
 
         {/* ВЕРСИЯ */}
         <div className="flex flex-col gap-0.5 flex-shrink-0">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
             <span className="text-[9px] uppercase font-bold text-[var(--color-text-dim)] tracking-[0.2em] opacity-50">
               Версия
             </span>
@@ -68,16 +66,33 @@ const Footer: React.FC<FooterProps> = ({
                 Переустановить
               </button>
             )}
+            {/* КНОПКА + */}
+            <button
+              onClick={onCreateInstance}
+              title="Создать инстанс"
+              className="flex items-center justify-center transition-all opacity-40 hover:opacity-100"
+              style={{
+                width: '14px',
+                height: '14px',
+                border: '1px solid var(--color-border-accent)',
+                borderRadius: '2px',
+                color: 'var(--color-brand)',
+                background: 'transparent',
+              }}
+            >
+              <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
           </div>
-            <VersionSelect 
-              versions={versions} 
-              selected={selectedVersion} 
-              onSelect={setSelectedVersion}
-              disabled={isLaunching}
-            />
+          <VersionSelect
+            versions={versions}
+            selected={selectedVersion}
+            onSelect={setSelectedVersion}
+            disabled={isLaunching}
+          />
         </div>
 
-        {/* РАЗДЕЛИТЕЛЬ */}
         <div className="w-px h-8 bg-[var(--color-border)] flex-shrink-0" />
 
         {/* ПАПКА */}
@@ -101,7 +116,6 @@ const Footer: React.FC<FooterProps> = ({
           </span>
         </div>
 
-        {/* SPACER */}
         <div className="flex-1" />
 
         {/* КНОПКА ЗАПУСКА */}

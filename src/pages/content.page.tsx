@@ -50,11 +50,80 @@ interface ModrinthCategory {
   header: string;
 }
 
-const CONTENT_TABS: { id: ContentType; label: string; icon: string }[] = [
-  { id: 'mod',          label: 'Моды',       icon: '🧩' },
-  { id: 'modpack',      label: 'Модпаки',    icon: '📦' },
-  { id: 'resourcepack', label: 'Ресурспаки', icon: '🎨' },
-  { id: 'shader',       label: 'Шейдеры',    icon: '✨' },
+// ── SVG иконки ───────────────────────────────────────────────
+const Icons = {
+  mod: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 01-.657.643 48.39 48.39 0 01-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 01-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 00-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 01-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 00.657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 01-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 005.427-.63 48.05 48.05 0 00.582-4.717.532.532 0 00-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .713.128 1.003.349.283.215.604.401.959.401v0a.656.656 0 00.658-.663 48.422 48.422 0 00-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 01-.61-.58v0z" />
+    </svg>
+  ),
+  modpack: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+    </svg>
+  ),
+  resourcepack: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+    </svg>
+  ),
+  shader: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+    </svg>
+  ),
+  download: (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+  ),
+  play: (
+    <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  ),
+  trash: (
+    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+  ),
+  close: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  ),
+  check: (
+    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  ),
+  search: (
+    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+  ),
+  arrow: (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+    </svg>
+  ),
+  instance: (
+    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 012.25-2.25h7.5A2.25 2.25 0 0118 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 004.5 9v.878m13.5-3A2.25 2.25 0 0119.5 9v.878m0 0a2.246 2.246 0 00-.75-.128H5.25c-.263 0-.515.045-.75.128m15 0A2.25 2.25 0 0121 12v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6c0-.98.626-1.813 1.5-2.122" />
+    </svg>
+  ),
+  globe: (
+    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253" />
+    </svg>
+  ),
+};
+
+const CONTENT_TABS: { id: ContentType; label: string; icon: React.ReactNode }[] = [
+  { id: 'mod',          label: 'Моды',       icon: Icons.mod },
+  { id: 'modpack',      label: 'Модпаки',    icon: Icons.modpack },
+  { id: 'resourcepack', label: 'Ресурспаки', icon: Icons.resourcepack },
+  { id: 'shader',       label: 'Шейдеры',    icon: Icons.shader },
 ];
 
 const SORT_OPTIONS = [
@@ -65,7 +134,6 @@ const SORT_OPTIONS = [
   { value: 'relevance',  label: 'Релевантность' },
 ];
 
-// Категории которые НЕ показываем (загрузчики — уже есть отдельные бейджи)
 const LOADER_CATEGORIES = new Set(['fabric', 'forge', 'neoforge', 'quilt', 'liteloader', 'modloader', 'rift', 'bukkit', 'folia', 'paper', 'purpur', 'spigot', 'sponge', 'bungeecord', 'waterfall', 'velocity', 'datapack']);
 
 function formatNumber(n: number): string {
@@ -92,7 +160,7 @@ const loaderStyle = (l: string) => {
   return { bg: 'var(--color-bg-subtle)', text: 'var(--color-text-dim)', border: 'var(--color-border)' };
 };
 
-// ─── Custom Select ───────────────────────────────────────
+// ─── Custom Select ───────────────────────────────────────────
 function CustomSelect({ value, onChange, options, placeholder }: {
   value: string;
   onChange: (v: string) => void;
@@ -145,15 +213,14 @@ function CustomSelect({ value, onChange, options, placeholder }: {
           {options.map(opt => (
             <div key={opt.value} onClick={() => { onChange(opt.value); setOpen(false); }}
               className="px-3 py-2 text-[10px] cursor-pointer flex items-center justify-between gap-2"
-              style={{ backgroundColor: value === opt.value ? 'var(--color-brand-dim)' : 'transparent', color: value === opt.value ? 'var(--color-brand)' : 'var(--color-text)' }}
+              style={{
+                backgroundColor: value === opt.value ? 'var(--color-brand-dim)' : 'transparent',
+                color: value === opt.value ? 'var(--color-brand)' : 'var(--color-text)',
+              }}
               onMouseEnter={e => { if (value !== opt.value) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-subtle)'; }}
               onMouseLeave={e => { if (value !== opt.value) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}>
               <span className="whitespace-nowrap">{opt.label}</span>
-              {value === opt.value && (
-                <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--color-brand)' }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                </svg>
-              )}
+              {value === opt.value && <span style={{ color: 'var(--color-brand)' }}>{Icons.check}</span>}
             </div>
           ))}
         </div>
@@ -162,7 +229,89 @@ function CustomSelect({ value, onChange, options, placeholder }: {
   );
 }
 
-// ─── Project Detail Panel ────────────────────────────────
+// ─── Instance Selector ──────────────────────────────────────
+// Показывает глобальную установку + список инстансов
+function InstanceSelector({ instances, selected, onChange, isModpack }: {
+  instances: GameInstance[];
+  selected: string;
+  onChange: (v: string) => void;
+  isModpack: boolean;
+}) {
+  if (isModpack || instances.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <span style={{ color: 'var(--color-brand)' }}>{Icons.instance}</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--color-text-dim)' }}>
+          Установить в
+        </span>
+      </div>
+
+      {/* Глобально */}
+      <button
+        onClick={() => onChange('')}
+        className="flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left"
+        style={{
+          backgroundColor: !selected ? 'var(--color-brand-dim)' : 'var(--color-bg-subtle)',
+          borderColor: !selected ? 'var(--color-brand)' : 'var(--color-border)',
+        }}
+      >
+        <span style={{ color: !selected ? 'var(--color-brand)' : 'var(--color-text-dim)' }}>{Icons.globe}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-bold" style={{ color: !selected ? 'var(--color-brand)' : 'var(--color-text)' }}>
+            Глобально
+          </p>
+          <p className="text-[8px]" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>
+            Общая папка mods
+          </p>
+        </div>
+        {!selected && <span style={{ color: 'var(--color-brand)' }}>{Icons.check}</span>}
+      </button>
+
+      {/* Инстансы */}
+      <div className="flex flex-col gap-1">
+        {instances.map(inst => {
+          const isSelected = selected === inst.id;
+          return (
+            <button
+              key={inst.id}
+              onClick={() => onChange(inst.id)}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left"
+              style={{
+                backgroundColor: isSelected ? 'var(--color-brand-dim)' : 'transparent',
+                borderColor: isSelected ? 'var(--color-brand)' : 'var(--color-border)',
+              }}
+              onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-subtle)'; }}
+              onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+            >
+              {inst.iconUrl ? (
+                <img src={inst.iconUrl} className="w-5 h-5 rounded object-cover flex-shrink-0" alt="" />
+              ) : (
+                <div className="w-5 h-5 rounded flex-shrink-0 flex items-center justify-center"
+                     style={{ backgroundColor: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)' }}>
+                  <span style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>{Icons.instance}</span>
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold truncate"
+                   style={{ color: isSelected ? 'var(--color-brand)' : 'var(--color-text)' }}>
+                  {inst.name}
+                </p>
+                <p className="text-[8px]" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>
+                  {inst.type} · MC {inst.gameVersion}
+                </p>
+              </div>
+              {isSelected && <span style={{ color: 'var(--color-brand)' }}>{Icons.check}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Project Detail Panel ────────────────────────────────────
 function ProjectDetailPanel({ project, instances, onClose, onInstallMod, onInstallModpack }: {
   project: ModrinthProject;
   instances: GameInstance[];
@@ -170,12 +319,12 @@ function ProjectDetailPanel({ project, instances, onClose, onInstallMod, onInsta
   onInstallMod: (url: string, filename: string, instanceId?: string) => void;
   onInstallModpack: (mrpackUrl: string, versionId: string) => void;
 }) {
-  const [versions, setVersions]         = useState<ModrinthVersion[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [gameFilter, setGameFilter]     = useState('');
-  const [loaderFilter, setLoaderFilter] = useState('');
+  const [versions, setVersions]           = useState<ModrinthVersion[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [gameFilter, setGameFilter]       = useState('');
+  const [loaderFilter, setLoaderFilter]   = useState('');
   const [selectedInstance, setSelectedInstance] = useState('');
-  const [tab, setTab]                   = useState<'versions' | 'info'>('info');
+  const [tab, setTab]                     = useState<'versions' | 'info'>('info');
   const isModpack = project.project_type === 'modpack';
 
   useEffect(() => {
@@ -215,33 +364,24 @@ function ProjectDetailPanel({ project, instances, onClose, onInstallMod, onInsta
           ) : (
             <div className="h-2" style={{ backgroundColor: 'var(--color-brand)', opacity: 0.4 }} />
           )}
-
           <div className={`flex items-end gap-4 px-5 pb-4 ${project.featured_gallery ? 'absolute bottom-0 left-0 right-0' : 'pt-4'}`}>
             <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 flex-shrink-0 flex items-center justify-center shadow-lg"
               style={{ backgroundColor: 'var(--color-bg-subtle)', borderColor: 'var(--color-border)' }}>
               {project.icon_url
                 ? <img src={project.icon_url} className="w-full h-full object-cover" alt="" onError={e => { (e.target as any).style.display = 'none'; }} />
-                : <span className="text-2xl">{isModpack ? '📦' : '🧩'}</span>}
+                : <span style={{ color: 'var(--color-brand)', opacity: 0.5 }}>{isModpack ? Icons.modpack : Icons.mod}</span>}
             </div>
             <div className="flex-1 min-w-0 pb-1">
               <h2 className="text-[15px] font-black truncate" style={{ color: 'var(--color-text)' }}>{project.title}</h2>
               <div className="flex items-center gap-3 mt-0.5">
-                <span className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
-                  {formatNumber(project.downloads)} загрузок
-                </span>
-                <span className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>
-                  {formatNumber(project.follows)} подписчиков
-                </span>
-                <span className="text-[9px]" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>
-                  {timeAgo(project.date_modified)}
-                </span>
+                <span className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>{formatNumber(project.downloads)} загрузок</span>
+                <span className="text-[10px]" style={{ color: 'var(--color-text-dim)' }}>{formatNumber(project.follows)} подписчиков</span>
+                <span className="text-[9px]" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>{timeAgo(project.date_modified)}</span>
               </div>
             </div>
             <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg mb-1 flex-shrink-0 transition-all border"
               style={{ color: 'var(--color-text-dim)', borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-subtle)' }}>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              {Icons.close}
             </button>
           </div>
         </div>
@@ -266,60 +406,50 @@ function ProjectDetailPanel({ project, instances, onClose, onInstallMod, onInsta
           {/* INFO TAB */}
           {tab === 'info' && (
             <div className="p-5 flex flex-col gap-4">
-
-              {/* Description */}
               <div>
-                <p className="text-[9px] uppercase tracking-widest mb-2 font-bold"
-                  style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Описание</p>
-                <p className="text-[12px] leading-relaxed" style={{ color: 'var(--color-text)' }}>
-                  {project.description}
-                </p>
+                <p className="text-[9px] uppercase tracking-widest mb-2 font-bold" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Описание</p>
+                <p className="text-[12px] leading-relaxed" style={{ color: 'var(--color-text)' }}>{project.description}</p>
               </div>
 
-              {/* Loaders */}
               {displayLoaders.length > 0 && (
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest mb-2 font-bold"
-                    style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Загрузчики</p>
+                  <p className="text-[9px] uppercase tracking-widest mb-2 font-bold" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Загрузчики</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {displayLoaders.map(l => {
-                      const s = loaderStyle(l);
-                      return (
-                        <span key={l} className="text-[10px] px-2.5 py-1 rounded-lg border font-bold capitalize"
-                          style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border }}>
-                          {l}
-                        </span>
-                      );
-                    })}
+                    {displayLoaders.map(l => { const s = loaderStyle(l); return (
+                      <span key={l} className="text-[10px] px-2.5 py-1 rounded-lg border font-bold capitalize"
+                        style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border }}>{l}</span>
+                    ); })}
                   </div>
                 </div>
               )}
 
-              {/* Categories */}
               {displayCategories.length > 0 && (
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest mb-2 font-bold"
-                    style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Категории</p>
+                  <p className="text-[9px] uppercase tracking-widest mb-2 font-bold" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>Категории</p>
                   <div className="flex flex-wrap gap-1.5">
                     {displayCategories.map(c => (
                       <span key={c} className="text-[10px] px-2.5 py-1 rounded-lg border capitalize"
-                        style={{ backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-dim)', borderColor: 'var(--color-border)' }}>
-                        {c}
-                      </span>
+                        style={{ backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-dim)', borderColor: 'var(--color-border)' }}>{c}</span>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Quick install button */}
-              <button
-                onClick={() => setTab('versions')}
-                className="w-full py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest border transition-all mt-1"
-                style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.8'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
-              >
-                Выбрать версию для установки →
+              {/* Выбор инстанса на вкладке info */}
+              {!isModpack && instances.length > 0 && (
+                <InstanceSelector
+                  instances={instances}
+                  selected={selectedInstance}
+                  onChange={setSelectedInstance}
+                  isModpack={false}
+                />
+              )}
+
+              <button onClick={() => setTab('versions')}
+                className="w-full py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest border transition-all mt-1 flex items-center justify-center gap-2"
+                style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}>
+                Выбрать версию для установки
+                {Icons.arrow}
               </button>
             </div>
           )}
@@ -327,26 +457,35 @@ function ProjectDetailPanel({ project, instances, onClose, onInstallMod, onInsta
           {/* VERSIONS TAB */}
           {tab === 'versions' && (
             <div className="flex flex-col">
-              {/* Instance + Filters */}
-              <div className="px-4 py-3 border-b flex flex-wrap gap-2 items-center"
+              {/* Выбор инстанса + фильтры */}
+              <div className="px-4 py-3 border-b flex flex-col gap-2"
                 style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg-subtle)' }}>
+
+                {/* Выбор инстанса */}
                 {!isModpack && instances.length > 0 && (
-                  <CustomSelect value={selectedInstance} onChange={setSelectedInstance}
-                    placeholder="Глобальная папка"
-                    options={instances.map(i => ({ value: i.id, label: `${i.name} (${i.gameVersion})` }))} />
+                  <InstanceSelector
+                    instances={instances}
+                    selected={selectedInstance}
+                    onChange={setSelectedInstance}
+                    isModpack={false}
+                  />
                 )}
-                <CustomSelect value={gameFilter} onChange={setGameFilter} placeholder="Все версии MC"
-                  options={gameVersions.slice(0, 25).map(v => ({ value: v, label: v }))} />
-                {loaders.length > 1 && (
-                  <CustomSelect value={loaderFilter} onChange={setLoaderFilter} placeholder="Все загрузчики"
-                    options={loaders.map(l => ({ value: l, label: l }))} />
-                )}
-                <span className="text-[9px] ml-auto" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>
-                  {filtered.length} версий
-                </span>
+
+                {/* Фильтры версий */}
+                <div className="flex flex-wrap gap-2 items-center">
+                  <CustomSelect value={gameFilter} onChange={setGameFilter} placeholder="Все версии MC"
+                    options={gameVersions.slice(0, 25).map(v => ({ value: v, label: v }))} />
+                  {loaders.length > 1 && (
+                    <CustomSelect value={loaderFilter} onChange={setLoaderFilter} placeholder="Все загрузчики"
+                      options={loaders.map(l => ({ value: l, label: l }))} />
+                  )}
+                  <span className="text-[9px] ml-auto" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>
+                    {filtered.length} версий
+                  </span>
+                </div>
               </div>
 
-              {/* Version list */}
+              {/* Список версий */}
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="w-5 h-5 border-2 rounded-full animate-spin"
@@ -394,9 +533,7 @@ function ProjectDetailPanel({ project, instances, onClose, onInstallMod, onInsta
                         style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '0.7'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}>
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
+                        {Icons.download}
                       </button>
                     )}
                   </div>
@@ -410,7 +547,7 @@ function ProjectDetailPanel({ project, instances, onClose, onInstallMod, onInsta
   );
 }
 
-// ─── Progress Modal ──────────────────────────────────────
+// ─── Progress Modal ──────────────────────────────────────────
 function ModpackProgressModal({ progress, projectName, onClose }: {
   progress: InstallProgress | null;
   projectName: string;
@@ -426,15 +563,11 @@ function ModpackProgressModal({ progress, projectName, onClose }: {
         <div className="flex items-center gap-3">
           {isDone ? (
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-brand-dim)' }}>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: 'var(--color-brand)' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
+              <span style={{ color: 'var(--color-brand)' }}>{Icons.check}</span>
             </div>
           ) : isError ? (
             <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center">
-              <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <span className="text-red-400">{Icons.close}</span>
             </div>
           ) : (
             <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg-subtle)' }}>
@@ -466,7 +599,7 @@ function ModpackProgressModal({ progress, projectName, onClose }: {
   );
 }
 
-// ─── Project Card ────────────────────────────────────────
+// ─── Project Card ────────────────────────────────────────────
 function ProjectCard({ project, onClick }: { project: ModrinthProject; onClick: () => void }) {
   const [imgError, setImgError] = useState(false);
   const isModpack = project.project_type === 'modpack';
@@ -491,7 +624,9 @@ function ProjectCard({ project, onClick }: { project: ModrinthProject; onClick: 
             style={{ backgroundColor: 'var(--color-bg-subtle)', borderColor: 'var(--color-border)' }}>
             {project.icon_url && !imgError
               ? <img src={project.icon_url} className="w-full h-full object-cover" alt="" onError={() => setImgError(true)} />
-              : <span className="text-lg">{isModpack ? '📦' : '🧩'}</span>}
+              : <span style={{ color: 'var(--color-brand)', opacity: 0.4 }}>
+                  {isModpack ? Icons.modpack : Icons.mod}
+                </span>}
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-[12px] font-bold truncate" style={{ color: 'var(--color-text)' }}>{project.title}</h3>
@@ -512,9 +647,7 @@ function ProjectCard({ project, onClick }: { project: ModrinthProject; onClick: 
         )}
         <div className="flex items-center gap-3 mt-3 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
           <div className="flex items-center gap-1" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
+            {Icons.download}
             <span className="text-[10px] font-mono">{formatNumber(project.downloads)}</span>
           </div>
           <div className="flex items-center gap-1" style={{ color: 'var(--color-text-dim)', opacity: 0.5 }}>
@@ -536,31 +669,32 @@ function ProjectCard({ project, onClick }: { project: ModrinthProject; onClick: 
   );
 }
 
-// ─── Main Page ───────────────────────────────────────────
+// ─── Main Page ───────────────────────────────────────────────
 export default function ContentPage({ nickname }: { nickname: string }) {
-  const [search, setSearch]                       = useState('');
-  const [debouncedSearch, setDebouncedSearch]     = useState('');
-  const [contentType, setContentType]             = useState<ContentType>('mod');
-  const [sortBy, setSortBy]                       = useState('downloads');
-  const [selectedCategory, setSelectedCategory]   = useState('');
-  const [projects, setProjects]                   = useState<ModrinthProject[]>([]);
-  const [loading, setLoading]                     = useState(true);
-  const [offset, setOffset]                       = useState(0);
-  const [totalHits, setTotalHits]                 = useState(0);
-  const [selectedProject, setSelectedProject]     = useState<ModrinthProject | null>(null);
-  const [instances, setInstances]                 = useState<GameInstance[]>([]);
-  const [installProgress, setInstallProgress]     = useState<InstallProgress | null>(null);
+  const [search, setSearch]                   = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [contentType, setContentType]         = useState<ContentType>('mod');
+  const [sortBy, setSortBy]                   = useState('downloads');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [projects, setProjects]               = useState<ModrinthProject[]>([]);
+  const [loading, setLoading]                 = useState(true);
+  const [offset, setOffset]                   = useState(0);
+  const [totalHits, setTotalHits]             = useState(0);
+  const [selectedProject, setSelectedProject] = useState<ModrinthProject | null>(null);
+  const [instances, setInstances]             = useState<GameInstance[]>([]);
+  const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null);
   const [installingProject, setInstallingProject] = useState('');
-  const [toast, setToast]                         = useState<string | null>(null);
-  const [categories, setCategories]               = useState<ModrinthCategory[]>([]);
+  const [toast, setToast]                     = useState<string | null>(null);
+  const [categories, setCategories]           = useState<ModrinthCategory[]>([]);
   const LIMIT = 20;
 
-  // Fetch categories for current content type
   useEffect(() => {
     fetch(`${MODRINTH_API}/tag/category`)
       .then(r => r.json())
       .then((data: ModrinthCategory[]) => {
-        const type = contentType === 'shader' ? 'shader' : contentType === 'resourcepack' ? 'resourcepack' : contentType === 'modpack' ? 'modpack' : 'mod';
+        const type = contentType === 'shader' ? 'shader'
+          : contentType === 'resourcepack' ? 'resourcepack'
+          : contentType === 'modpack' ? 'modpack' : 'mod';
         setCategories(data.filter(c => c.project_type === type && !LOADER_CATEGORIES.has(c.name)));
       })
       .catch(() => {});
@@ -625,8 +759,11 @@ export default function ContentPage({ nickname }: { nickname: string }) {
         projectType: contentType === 'shader' ? 'shader' : contentType === 'resourcepack' ? 'resourcepack' : 'mod',
         instanceId,
       });
-      if (result?.success) showToast(`✓ ${filename} установлен${instanceId ? ' в инстанс' : ''}`);
-      else showToast(`✗ Ошибка: ${result?.error || 'неизвестно'}`);
+      if (result?.success) {
+        showToast(`✓ ${filename}${instanceId ? ` → ${instances.find(i => i.id === instanceId)?.name || 'инстанс'}` : ' (глобально)'}`);
+      } else {
+        showToast(`✗ Ошибка: ${result?.error || 'неизвестно'}`);
+      }
     } catch { showToast('✗ Ошибка установки'); }
   };
 
@@ -661,7 +798,7 @@ export default function ContentPage({ nickname }: { nickname: string }) {
                   backgroundColor: contentType === tab.id ? 'var(--color-brand)' : 'transparent',
                   color: contentType === tab.id ? 'var(--color-bg)' : 'var(--color-text-dim)',
                 }}>
-                <span className="text-[11px]">{tab.icon}</span>
+                {tab.icon}
                 <span>{tab.label}</span>
               </button>
             ))}
@@ -670,41 +807,34 @@ export default function ContentPage({ nickname }: { nickname: string }) {
         <div className="flex items-center gap-2">
           <CustomSelect value={sortBy} onChange={setSortBy} options={SORT_OPTIONS} />
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3" style={{ color: 'var(--color-text-dim)' }}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <div className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-dim)' }}>
+              {Icons.search}
+            </div>
             <input type="text" placeholder="Поиск..." value={search} onChange={e => setSearch(e.target.value)}
               className="pl-8 pr-8 py-1.5 rounded-xl border text-[11px] w-44 outline-none transition-all"
               style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
               onFocus={e => (e.target as HTMLElement).style.borderColor = 'var(--color-brand)'}
               onBlur={e => (e.target as HTMLElement).style.borderColor = 'var(--color-border)'} />
             {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2"
-                style={{ color: 'var(--color-text-dim)' }}>
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-dim)' }}>
+                {Icons.close}
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* CATEGORY FILTER BAR */}
+      {/* CATEGORY FILTER */}
       {categories.length > 0 && (
         <div className="px-5 py-2 border-b flex items-center gap-1.5 flex-shrink-0 overflow-x-auto"
           style={{ borderColor: 'var(--color-border)' }}>
-          <button
-            onClick={() => setSelectedCategory('')}
+          <button onClick={() => setSelectedCategory('')}
             className="px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider flex-shrink-0 border transition-all"
             style={{
               backgroundColor: !selectedCategory ? 'var(--color-brand)' : 'var(--color-bg-elevated)',
               borderColor: !selectedCategory ? 'var(--color-brand)' : 'var(--color-border)',
               color: !selectedCategory ? 'var(--color-bg)' : 'var(--color-text-dim)',
-            }}>
-            Все
-          </button>
+            }}>Все</button>
           {categories.map(cat => (
             <button key={cat.name} onClick={() => setSelectedCategory(selectedCategory === cat.name ? '' : cat.name)}
               className="px-2.5 py-1 rounded-lg text-[9px] font-medium capitalize flex-shrink-0 border transition-all"
@@ -712,19 +842,17 @@ export default function ContentPage({ nickname }: { nickname: string }) {
                 backgroundColor: selectedCategory === cat.name ? 'var(--color-brand-dim)' : 'var(--color-bg-elevated)',
                 borderColor: selectedCategory === cat.name ? 'var(--color-brand)' : 'var(--color-border)',
                 color: selectedCategory === cat.name ? 'var(--color-brand)' : 'var(--color-text-dim)',
-              }}>
-              {cat.name}
-            </button>
+              }}>{cat.name}</button>
           ))}
         </div>
       )}
 
-      {/* Stats + Instances */}
-      {(!loading && totalHits > 0) || instances.length > 0 ? (
+      {/* STATS + INSTANCES BAR */}
+      {((!loading && totalHits > 0) || instances.length > 0) && (
         <div className="flex items-center justify-between px-5 border-b flex-shrink-0 overflow-x-auto"
           style={{ borderColor: 'var(--color-border)', minHeight: '32px' }}>
           {!loading && totalHits > 0 && (
-            <span className="text-[9px] uppercase tracking-widest py-2" style={{ color: 'var(--color-text-dim)', opacity: 0.4, flexShrink: 0 }}>
+            <span className="text-[9px] uppercase tracking-widest py-2 flex-shrink-0" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>
               {formatNumber(totalHits)} проектов{debouncedSearch ? ` по «${debouncedSearch}»` : ''}{selectedCategory ? ` • ${selectedCategory}` : ''}
             </span>
           )}
@@ -745,7 +873,7 @@ export default function ContentPage({ nickname }: { nickname: string }) {
                   <button onClick={() => window.ipcRenderer.send('launch-game', { nickname, instanceId: inst.id })}
                     className="w-4 h-4 flex items-center justify-center rounded border transition-all"
                     style={{ backgroundColor: 'var(--color-brand-dim)', borderColor: 'var(--color-brand)', color: 'var(--color-brand)' }}>
-                    <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    {Icons.play}
                   </button>
                   <button
                     onClick={() => window.ipcRenderer.invoke('remove-instance', inst.id)
@@ -754,18 +882,16 @@ export default function ContentPage({ nickname }: { nickname: string }) {
                     style={{ color: 'var(--color-text-dim)', opacity: 0.3 }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#f87171'; (e.currentTarget as HTMLElement).style.opacity = '1'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-text-dim)'; (e.currentTarget as HTMLElement).style.opacity = '0.3'; }}>
-                    <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    {Icons.trash}
                   </button>
                 </div>
               ))}
             </div>
           )}
         </div>
-      ) : null}
+      )}
 
-      {/* Grid */}
+      {/* GRID */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
         {loading && projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 gap-3">
@@ -775,7 +901,7 @@ export default function ContentPage({ nickname }: { nickname: string }) {
           </div>
         ) : projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 gap-2">
-            <span className="text-3xl opacity-20">🔍</span>
+            <span style={{ color: 'var(--color-text-dim)', opacity: 0.2 }}>{Icons.search}</span>
             <span className="text-[11px]" style={{ color: 'var(--color-text-dim)', opacity: 0.4 }}>Ничего не найдено</span>
           </div>
         ) : (

@@ -2,7 +2,7 @@ import "electron";
 import "node:url";
 import "node:path";
 import "node:fs";
-import { R, V, s } from "./main-BRYLZfFC.js";
+import { R, V, s } from "./main-DzQk0Ro2.js";
 import "fs";
 import "path";
 import "node:crypto";

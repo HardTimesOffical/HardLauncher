@@ -14,6 +14,7 @@ export interface GameInstance {
   lastPlayed?: string;
   modrinthProjectId?: string; // если это модпак с modrinth
   modrinthVersionId?: string;
+  source?: 'custom' | 'mojang';
 }
 
 export class InstanceManager {

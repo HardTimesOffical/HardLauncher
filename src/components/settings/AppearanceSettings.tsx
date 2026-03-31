@@ -7,8 +7,9 @@ interface AppearanceSettingsProps {
 
 export const AppearanceSettings = ({ currentTheme, onThemeChange }: AppearanceSettingsProps) => {
   const themes = [
-    { id: 'dark', label: 'Void', desc: 'Classic', preview: 'bg-[#0f0f0f]', accent: 'bg-[#5da9ff]' },
+    // Выносим OLED на первое место
     { id: 'amoled', label: 'OLED', desc: 'Pure', preview: 'bg-[#000000]', accent: 'bg-[#1bd96a]' },
+    { id: 'dark', label: 'Void', desc: 'Classic', preview: 'bg-[#0b0e0b]', accent: 'bg-[#7aab4a]' },
     { id: 'crimson', label: 'Crimson', desc: 'Abyss', preview: 'bg-[#0d0202]', accent: 'bg-gradient-to-br from-[#ff3c3c] to-[#700000]' },
     { id: 'cyber', label: 'Cyber', desc: 'Neon', preview: 'bg-[#0a0514]', accent: 'bg-gradient-to-br from-[#bc13fe] to-[#2575fc]' },
     { id: 'forest', label: 'Forest', desc: 'Silent', preview: 'bg-[#040806]', accent: 'bg-gradient-to-br from-[#1bd96a] to-[#0a4d29]' },

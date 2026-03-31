@@ -3,13 +3,8 @@
 /* =====================
    DRAG REGIONS
    ===================== */
-.drag-region {
-  -webkit-app-region: drag;
-}
-
-.no-drag {
-  -webkit-app-region: no-drag;
-}
+.drag-region { -webkit-app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; }
 
 /* =====================
    FONTS
@@ -29,162 +24,358 @@
 }
 
 /* =====================
-   ROOT & BASE
+   ROOT — MILITARY (DEFAULT)
    ===================== */
 :root {
-  --color-bg: #0f0f0f;
-  --color-bg-elevated: #111111;
-  --color-bg-subtle: #161616;
-  --color-bg-overlay: #0a0a0a;
-  --color-border: rgba(255, 255, 255, 0.06);
-  --color-brand: #5da9ff;
-  --color-brand-dim: rgba(93, 169, 255, 0.15);
-  --color-text: rgba(255, 255, 255, 0.85);
-  --color-text-dim: rgba(255, 255, 255, 0.4);
+  /* Базовые фоны (Синегорск: глубокий темный сланец) */
+  --color-bg:            #0a0b0b; 
+  --color-bg-elevated:   #161817; 
+  --color-bg-subtle:     #1e211f; 
+  --color-bg-overlay:    rgba(0, 0, 0, 0.85);
+
+  /* Границы */
+  --color-border:        rgba(255, 255, 255, 0.08);
+  --color-border-accent: #2d322f;
+
+  /* Brand Colors (Оливковый концепт) */
+  --color-brand:         #84a98c; 
+  --color-brand-dim:     rgba(132, 169, 140, 0.25);
+  --color-brand-glow:    rgba(132, 169, 140, 0.15);
+
+  /* Текст (Светлый и читаемый) */
+  --color-text:          #f2f2f2; /* Сделал чуть ярче для контраста */
+  --color-text-dim:      #7d8581; 
+
+  /* СИГНАЛЬНЫЕ ЦВЕТА (Чистые и яркие, не тусклые) */
+  --color-danger:        #ff3333; /* Чистый красный (для кнопки закрытия и ошибок) */
+  --color-warn:          #ff9900; /* Яркий оранжевый (для статуса разработки) */
+
+  /* Sidebar */
+  --sidebar-w: 56px;
+  --sidebar-icon: 36px;
 }
 
+/* =====================
+   THEMES
+   ===================== */
 [data-theme='light'] {
-  --color-bg: #f8f9fa;
+  --color-bg:          #f0f4ec;
   --color-bg-elevated: #ffffff;
-  --color-bg-subtle: #edf2f7;
-  --color-bg-overlay: #e2e8f0;
-  --color-border: #cbd5e0;
-  --color-brand: #3b82f6;
-  --color-brand-dim: rgba(59, 130, 246, 0.1);
-  --color-text: #2d3748;
-  --color-text-dim: #718096;
+  --color-bg-subtle:   #e8ede2;
+  --color-bg-overlay:  rgba(220, 230, 210, 0.9);
+  --color-border:      rgba(100, 130, 70, 0.25);
+  --color-border-accent: rgba(100, 130, 70, 0.5);
+  --color-brand:       #4a7c2a;
+  --color-brand-dim:   rgba(74, 124, 42, 0.12);
+  --color-brand-glow:  rgba(74, 124, 42, 0.06);
+  --color-text:        #2a3520;
+  --color-text-dim:    #6a8050;
 }
 
 [data-theme='crimson'] {
-  --color-bg: #0d0202;
+  --color-bg:          #0d0202;
   --color-bg-elevated: #1a0505;
-  --color-bg-subtle: #240808;
-  --color-bg-overlay: rgba(0, 0, 0, 0.8);
-  --color-border: rgba(255, 50, 50, 0.15);
-  --color-brand: #ff3c3c;
-  --color-brand-dim: rgba(255, 60, 60, 0.15);
-  --color-text: #ffebeb;
-  --color-text-dim: #946e6e;
+  --color-bg-subtle:   #120404;
+  --color-bg-overlay:  rgba(0, 0, 0, 0.88);
+  --color-border:      rgba(180, 40, 40, 0.18);
+  --color-border-accent: rgba(200, 50, 50, 0.5);
+  --color-brand:       #c0392b;
+  --color-brand-dim:   rgba(192, 57, 43, 0.15);
+  --color-brand-glow:  rgba(192, 57, 43, 0.08);
+  --color-text:        rgba(255, 220, 210, 0.90);
+  --color-text-dim:    rgba(180, 120, 110, 0.55);
 }
 
 [data-theme='cyber'] {
-  --color-bg: #0a0514;
-  --color-bg-elevated: #120b24;
-  --color-bg-subtle: #1a1233;
-  --color-bg-overlay: rgba(5, 2, 10, 0.9);
-  --color-border: rgba(188, 19, 254, 0.2);
-  --color-brand: #bc13fe;
-  --color-brand-dim: rgba(188, 19, 254, 0.2);
-  --color-text: #f0e6ff;
-  --color-text-dim: #8e7fb0;
+  --color-bg:          #050210;
+  --color-bg-elevated: #0c0820;
+  --color-bg-subtle:   #080518;
+  --color-bg-overlay:  rgba(0, 0, 5, 0.9);
+  --color-border:      rgba(140, 20, 220, 0.20);
+  --color-border-accent: rgba(180, 50, 255, 0.45);
+  --color-brand:       #a020f0;
+  --color-brand-dim:   rgba(160, 32, 240, 0.15);
+  --color-brand-glow:  rgba(160, 32, 240, 0.08);
+  --color-text:        rgba(220, 200, 255, 0.90);
+  --color-text-dim:    rgba(140, 110, 200, 0.55);
 }
 
 [data-theme='forest'] {
-  --color-bg: #040806;
-  --color-bg-elevated: #08120e;
-  --color-bg-subtle: #0c1a15;
-  --color-bg-overlay: rgba(0, 5, 2, 0.9);
-  --color-border: rgba(27, 217, 106, 0.15);
-  --color-brand: #1bd96a;
-  --color-brand-dim: rgba(27, 217, 106, 0.15);
-  --color-text: #eafff3;
-  --color-text-dim: #6e947f;
+  --color-bg:          #030a05;
+  --color-bg-elevated: #071209;
+  --color-bg-subtle:   #050e07;
+  --color-bg-overlay:  rgba(0, 4, 1, 0.9);
+  --color-border:      rgba(30, 180, 80, 0.18);
+  --color-border-accent: rgba(40, 210, 100, 0.45);
+  --color-brand:       #1db954;
+  --color-brand-dim:   rgba(29, 185, 84, 0.15);
+  --color-brand-glow:  rgba(29, 185, 84, 0.07);
+  --color-text:        rgba(200, 240, 210, 0.90);
+  --color-text-dim:    rgba(100, 170, 120, 0.55);
 }
 
-[data-theme='amoled'] {
-  --color-bg: #000000;
-  --color-bg-elevated: #050505;
-  --color-bg-subtle: #0a0a0a;
-  --color-bg-overlay: #000000;
-  --color-border: #1a1a1a;
-  --color-brand: #1bd96a;
-  --color-brand-dim: rgba(27, 217, 106, 0.1);
-  --color-text: #ffffff;
-  --color-text-dim: #666666;
+[data-theme='dark'] {
+  --color-bg:           #0b0e0b;
+  --color-bg-elevated:  #111511;
+  --color-bg-subtle:    #0d110d;
+  --color-bg-overlay:   rgba(0, 0, 0, 0.85);
+  --color-border:       rgba(120, 160, 90, 0.18);
+  --color-border-accent: rgba(120, 160, 90, 0.45);
+  --color-brand:        #7aab4a;
+  --color-brand-dim:    rgba(122, 171, 74, 0.15);
+  --color-brand-glow:   rgba(122, 171, 74, 0.08);
+  --color-text:         rgba(220, 235, 200, 0.90);
+  --color-text-dim:     rgba(160, 185, 130, 0.50);
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+/* =====================
+   BASE
+   ===================== */
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  margin: 0;
-  padding: 0;
+  margin: 0; padding: 0;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-family: 'MinecraftSeven', monospace;
 }
 
 /* =====================
-   SCROLLBAR — тема-зависимый
+   SCROLLBAR
    ===================== */
-::-webkit-scrollbar {
-  width: 3px;
-  height: 3px;
+::-webkit-scrollbar { width: 2px; height: 2px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-accent); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-brand); }
+
+::selection { background: var(--color-brand-dim); color: var(--color-text); }
+
+/* =====================
+   SIDEBAR — MILITARY STYLE
+   ===================== */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--color-bg-subtle);
+  border-right: 1px solid var(--color-border);
+  position: relative;
 }
 
-::-webkit-scrollbar-track {
+/* Вертикальная линия-акцент слева */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--color-brand) 30%,
+    var(--color-brand) 70%,
+    transparent 100%
+  );
+  opacity: 0.4;
+}
+
+.sidebar-btn {
+  position: relative;
+  width: var(--sidebar-icon);
+  height: var(--sidebar-icon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
   background: transparent;
+  color: var(--color-text-dim);
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 99px;
-}
-
-::-webkit-scrollbar-thumb:hover {
+.sidebar-btn:hover {
   background: var(--color-brand-dim);
+  border-color: var(--color-border-accent);
+  color: var(--color-brand);
+}
+
+.sidebar-btn.active {
+  background: var(--color-brand-dim);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+  box-shadow: inset 0 0 12px var(--color-brand-glow),
+              0 0 8px var(--color-brand-glow);
+}
+
+/* Индикатор активной вкладки — черта справа */
+.sidebar-btn.active::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 20%;
+  bottom: 20%;
+  width: 2px;
+  background: var(--color-brand);
+  border-radius: 1px;
+}
+
+/* Разделитель */
+.sidebar-divider {
+  width: 28px;
+  height: 1px;
+  background: var(--color-border);
+  margin: 4px 0;
 }
 
 /* =====================
-   SELECTION
+   CORNER DECORATION — угловые скобки
    ===================== */
-::selection {
-  background: var(--color-brand-dim);
+.corner-box {
+  position: relative;
+}
+.corner-box::before,
+.corner-box::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: var(--color-brand);
+  border-style: solid;
+  opacity: 0.6;
+}
+.corner-box::before {
+  top: 0; left: 0;
+  border-width: 1px 0 0 1px;
+}
+.corner-box::after {
+  bottom: 0; right: 0;
+  border-width: 0 1px 1px 0;
+}
+
+/* =====================
+   TACTICAL BUTTON
+   ===================== */
+.btn-tactical {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border-accent);
+  background: rgba(122, 171, 74, 0.06);
   color: var(--color-text);
+  font-family: 'MinecraftSeven', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-tactical::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--color-brand);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.btn-tactical:hover {
+  background: var(--color-brand-dim);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.btn-tactical:hover::before {
+  opacity: 1;
+}
+
+.btn-tactical:active {
+  transform: scale(0.98);
+}
+
+/* =====================
+   SCAN LINE OVERLAY
+   ===================== */
+.scanlines {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  z-index: 1;
+}
+
+/* =====================
+   NOISE TEXTURE
+   ===================== */
+.noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 150px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
 }
 
 /* =====================
    ANIMATIONS
    ===================== */
 @keyframes progress-glow {
-  0%   { opacity: 0.4; }
-  50%  { opacity: 1; }
-  100% { opacity: 0.4; }
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1; }
 }
 
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes scale-in {
-  from { opacity: 0; transform: scale(0.96); }
+  from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* animate-in / slide-in helpers (упрощённые) */
 @keyframes animateIn {
-  from { opacity: 0; transform: translateY(-4px); }
+  from { opacity: 0; transform: translateY(-3px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.animate-in {
-  animation: animateIn 0.15s ease-out forwards;
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
-.animate-pulse-fast {
-  animation: progress-glow 1.5s infinite ease-in-out;
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
 }
 
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out forwards;
-}
+.animate-in       { animation: animateIn 0.15s ease-out forwards; }
+.animate-fade-up  { animation: fade-up 0.2s ease-out forwards; }
+.animate-scale-in { animation: scale-in 0.15s ease-out forwards; }
+.animate-pulse-fast { animation: progress-glow 1.5s infinite ease-in-out; }
+.animate-blink    { animation: blink-cursor 1s infinite; }
 
-.animate-scale-in {
-  animation: scale-in 0.15s ease-out forwards;
+/* slide-in helpers */
+.slide-in-from-right-5 { animation: slideInRight 0.4s ease-out forwards; }
+.fade-in { animation: fade-up 0.2s ease-out forwards; }
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 /* =====================
@@ -196,67 +387,79 @@ body {
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(122, 171, 74, 0.03);
   border: 1px solid var(--color-border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-.glow-brand {
-  box-shadow: 0 0 12px var(--color-brand-dim);
-}
+.glow-brand { box-shadow: 0 0 12px var(--color-brand-glow); }
+.text-glow-brand { text-shadow: 0 0 8px var(--color-brand-glow); }
 
-.text-glow-brand {
-  text-shadow: 0 0 8px var(--color-brand-dim);
-}
+.font-mc       { font-family: 'MinecraftSeven', monospace; }
+.font-mc-title { font-family: 'MinecraftTen', sans-serif; }
 
-.font-mc {
-  font-family: 'MinecraftSeven', monospace;
-}
-
-.font-mc-title {
-  font-family: 'MinecraftTen', sans-serif;
-}
+select { appearance: none; -webkit-appearance: none; }
 
 /* =====================
-   NATIVE SELECT — скрыть стрелку
-   (на случай если где-то остались)
+   SHIMMER BAR
    ===================== */
-select {
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-/* =====================
-   SHIMMER — для прогресс-бара
-   ===================== */
-@keyframes shimmer {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-.shimmer-bar {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
+.shimmer-bar { position: absolute; inset: 0; overflow: hidden; }
 .shimmer-bar::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 50%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.18) 50%,
-    transparent 100%
-  );
-  animation: shimmer 1.8s ease-in-out infinite;
+  top: 0; left: 0;
+  height: 100%; width: 50%;
+  background: linear-gradient(90deg, transparent, rgba(122,171,74,0.15), transparent);
+  animation: shimmer 2s ease-in-out infinite;
 }
 
-.custom-scroll::-webkit-scrollbar { width: 3px; }
+.custom-scroll::-webkit-scrollbar       { width: 2px; }
 .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-.custom-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.custom-scroll::-webkit-scrollbar-thumb { background: var(--color-border-accent); border-radius: 2px; }
+
+/* =====================
+   TACTICAL PANEL — рамка с угловыми акцентами
+   ===================== */
+.panel-tactical {
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  position: relative;
+  background: var(--color-bg-elevated);
+}
+
+.panel-tactical::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: 12px;
+  width: 24px; height: 1px;
+  background: var(--color-brand);
+  opacity: 0.7;
+}
+
+/* =====================
+   STATUS DOT
+   ===================== */
+.status-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow: 0 0 4px var(--color-brand);
+  animation: progress-glow 2s infinite;
+  flex-shrink: 0;
+}
+
+/* =====================
+   LABEL CHIP
+   ===================== */
+.label-chip {
+  font-family: 'MinecraftSeven', monospace;
+  font-size: 8px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border-accent);
+  border-radius: 1px;
+  color: var(--color-brand);
+  background: var(--color-brand-dim);
+}

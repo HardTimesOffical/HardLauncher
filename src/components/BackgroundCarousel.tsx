@@ -37,8 +37,8 @@ const BackgroundCarousel: React.FC<BackgroundCarouselProps> = ({
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
       {/* Градиент */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black z-10 pointer-events-none" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/10 to-transparent z-10 pointer-events-none" />
+      <div className="absolute inset-0  via-transparent z-10 pointer-events-none" />
+      <div className="absolute inset-0 to-transparent z-10 pointer-events-none" />
 
       {/* Картинки */}
       {images.map((img, i) => (

@@ -83,124 +83,116 @@ export default function PlayTab({ bgImages }: PlayTabProps) {
   }, [])
 
   return (
-    <div className="h-full flex relative">
+ <div className="h-full flex relative font-sans overflow-hidden">
       {/* Фоновый carousel */}
       <div className="absolute inset-0 z-0">
         <BackgroundCarousel images={bgImages} interval={10000} />
-        {/* Градиент: прозрачно слева, темнее справа */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-black/40 to-black/80" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        {/* Градиент: Синегорск-стайл, более глубокий черный справа */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/40 to-[var(--color-bg)]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-bg)]/80 via-transparent to-transparent" />
       </div>
 
-      {/* Левая зона — пустая, показываем арт */}
-      <div className="flex-1 relative z-10 flex flex-col justify-end p-6 pointer-events-none select-none">
-        {/* Маленький watermark / лейбл лаунчера */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-5 h-[2px] bg-white/40" />
-          <span className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">Hard Times</span>
+      {/* Левая зона — Арт и минималистичный лейбл */}
+      <div className="flex-1 relative z-10 flex flex-col justify-end p-8 pointer-events-none select-none">
+        <div className="flex items-center gap-3 mb-2 opacity-60">
+          <div className="w-8 h-[1px] bg-[var(--color-brand)]" />
+          <span className="text-[10px] font-bold tracking-[0.4em] uppercase text-[var(--color-text)]">
+            SINEGORSK DISTRICT
+          </span>
         </div>
       </div>
 
-      {/* Правая панель */}
-      <div className="relative z-10 w-[380px] h-full flex flex-col gap-3 p-4">
+      {/* Правая панель (Контентная зона) */}
+      <div className="relative z-10 w-[400px] h-full flex flex-col gap-2 p-2 bg-black/20 backdrop-blur-sm border-l border-white/5">
 
-        {/* Серверы */}
-        <div
-          className="rounded-xl overflow-hidden"
-          style={{
-            background: 'rgba(10,10,15,0.75)',
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}
-        >
+        {/* СЕРВЕРЫ (ServerList) — теперь без лишних отступов и скруглений */}
+        <div className="bg-black/60 border border-[var(--color-border-accent)] shadow-2xl">
           <ServerList />
         </div>
 
-        {/* Блок новостей / changelog */}
-        <div
-          className="flex-1 flex flex-col min-h-0 rounded-xl overflow-hidden"
-          style={{
-            background: 'rgba(10,10,15,0.75)',
-            backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}
-        >
-          {/* Заголовок */}
-          <div className="px-4 py-3 flex items-center gap-2"
-               style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <span className="text-[10px] font-black tracking-[0.25em] uppercase text-white/40">
-              Обновления
-            </span>
+        {/* БЛОК ОБНОВЛЕНИЙ */}
+        <div className="flex-1 flex flex-col min-h-0 bg-black/60 border border-[var(--color-border-accent)] shadow-2xl">
+          {/* Заголовок в стиле Синегорск */}
+          <div className="px-4 py-2.5 flex items-center justify-between bg-white/[0.02] border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-3 bg-[var(--color-brand)]" />
+              <span className="text-[10px] font-black tracking-[0.2em] uppercase text-[var(--color-text)]">
+                Журнал изменений
+              </span>
+            </div>
             {changelog.length > 0 && (
-              <span className="ml-auto text-[9px] font-bold tracking-widest uppercase text-white/20">
-                v{changelog[0].version}
+              <span className="text-[9px] font-mono font-bold text-[var(--color-brand)] opacity-80">
+                v.{changelog[0].version}
               </span>
             )}
           </div>
 
-          {/* Список */}
-          <div ref={listRef} className="flex-1 overflow-y-auto custom-scroll px-2 py-2 flex flex-col gap-1">
-            {changelog.length === 0 && (
+          {/* Список новостей */}
+          <div ref={listRef} className="flex-1 overflow-y-auto custom-scroll px-2 py-3 flex flex-col gap-1.5">
+            {changelog.length === 0 ? (
               <div className="flex-1 flex items-center justify-center">
-                <span className="text-white/20 text-[11px]">Загрузка...</span>
+                <span className="text-[var(--color-text-dim)] text-[10px] uppercase tracking-widest animate-pulse">Загрузка данных...</span>
               </div>
-            )}
+            ) : (
+              changelog.map((entry, idx) => {
+                const isOpen = expanded === entry.version
+                const tag = TAG_STYLES[entry.tag] ?? TAG_STYLES.feature
 
-            {changelog.map((entry, idx) => {
-              const isOpen = expanded === entry.version
-              const tag = TAG_STYLES[entry.tag] ?? TAG_STYLES.feature
-
-              return (
-                <div
-                  key={entry.version}
-                  className="rounded-lg overflow-hidden transition-all duration-200"
-                  style={{
-                    background: isOpen ? 'rgba(255,255,255,0.05)' : 'transparent',
-                    border: `1px solid ${isOpen ? 'rgba(255,255,255,0.08)' : 'transparent'}`,
-                  }}
-                >
-                  {/* Хедер записи */}
-                  <button
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-white/5 transition-colors"
-                    onClick={() => setExpanded(isOpen ? null : entry.version)}
+                return (
+                  <div
+                    key={entry.version}
+                    className="transition-all duration-200 border border-transparent"
+                    style={{
+                      background: isOpen ? 'var(--color-bg-subtle)' : 'rgba(255,255,255,0.02)',
+                      borderColor: isOpen ? 'var(--color-border-accent)' : 'transparent',
+                    }}
                   >
-                    {/* Индикатор — первая запись яркая */}
-                    <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${idx === 0 ? 'bg-white/70' : 'bg-white/20'}`} />
+                    {/* Хедер записи */}
+                    <button
+                      className="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-white/[0.03] transition-colors"
+                      onClick={() => setExpanded(isOpen ? null : entry.version)}
+                    >
+                      {/* Индикатор: Яркий оливковый для первой (актуальной) записи */}
+                      <div className={`w-1 h-1 flex-shrink-0 ${idx === 0 ? 'bg-[var(--color-brand)]' : 'bg-white/20'}`} />
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-semibold text-white/80 truncate">{entry.title}</span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border tracking-wider ${tag.color}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className={`text-[11px] font-bold truncate ${isOpen ? 'text-[var(--color-brand)]' : 'text-white/90'}`}>
+                            {entry.title}
+                          </span>
+                          <span className="text-[9px] font-mono text-white/20 ml-2">
+                            {formatDate(entry.date)}
+                          </span>
+                        </div>
+                        {/* Тег: Используем чистые цвета из твоего яркого :root */}
+                        <span className={`text-[8px] font-black px-1.5 py-0.5 border uppercase tracking-tighter ${tag.color} bg-black/20`}>
                           {tag.label}
                         </span>
                       </div>
-                      <span className="text-[10px] text-white/25">{formatDate(entry.date)}</span>
-                    </div>
 
-                    {/* Стрелка */}
-                    <svg
-                      className="w-3 h-3 text-white/25 flex-shrink-0 transition-transform duration-200"
-                      style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
+                      {/* Стрелка (квадратная стилистика) */}
+                      <svg
+                        className={`w-3 h-3 text-white/20 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}
+                      >
+                        <path strokeLinecap="square" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
 
-                  {/* Тело */}
-                  {isOpen && (
-                    <div className="px-4 pb-3 pt-1 border-t border-white/5">
-                      <div className="flex flex-col gap-0.5">
-                        {renderMarkdown(entry.body)}
+                    {/* Тело (Markdown контент) */}
+                    {isOpen && (
+                      <div className="px-4 pb-4 pt-2 border-t border-white/5 bg-black/20">
+                        <div className="text-[11px] leading-relaxed text-white/70 space-y-1">
+                          {renderMarkdown(entry.body)}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                    )}
+                  </div>
+                )
+              })
+            )}
           </div>
         </div>
-
       </div>
     </div>
   )

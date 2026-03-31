@@ -10,6 +10,7 @@ import ProfilePage from './pages/profile.page';
 import ContentPage from './pages/content.page';
 import SkinHead from './components/SkinHead';
 import TitleBar from './components/TitleBar';
+import CreateInstanceModal from './components/Createinstancemodal';
 
 interface GameVersion {
   id: string;
@@ -88,11 +89,12 @@ function App() {
   const [chatUnread, setChatUnread] = useState(0); // ← счётчик непрочитанных
   const [isLaunching, setIsLaunching] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [showCreateInstance, setShowCreateInstance] = useState(false);
 
   const currentVersionObj = versions.find(v => v.id === selectedVersion);
   const isDownloaded = currentVersionObj?.isDownloaded;
 
-  const bgImages = ['banners/bg1.jpg', 'banners/bg2.jpg', 'banners/bg3.jpg', 'banners/bg5.jpg'];
+  const bgImages = ['banners/background2.png'];
 
   const stopLaunching = useCallback(() => {
     setIsLaunching(false);
@@ -299,75 +301,121 @@ function App() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* SIDEBAR */}
-        <aside className="w-[60px] border-r flex flex-col items-center py-4 gap-1 flex-shrink-0 z-50"
-               style={{ backgroundColor: 'var(--color-bg-subtle)', borderColor: 'var(--color-border)' }}>
-          {navTabs.map(tab => (
+       {/* SIDEBAR — MILITARY STYLE */}
+        <aside className="sidebar flex flex-col items-center py-3 gap-1 flex-shrink-0 z-50">
+
+          {/* Верхний логотип/метка */}
+          <div className="w-full flex items-center justify-center mb-2 pb-2"
+               style={{ borderBottom: '1px solid var(--color-border)' }}>
+            <div className="label-chip">MENU</div>
+          </div>
+                    <div className="px-2.5 w-full mt-1">
             <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                if (tab.id === 'chat') {
-                  setHasMention(false);
-                  setChatUnread(0); // сброс при открытии чата
-                }
-              }}
-              title={tab.label}
-              className={`relative w-10 h-10 flex items-center justify-center rounded-lg transition-all group
-                ${activeTab === tab.id
-                  ? 'bg-[var(--color-brand-dim)] text-[var(--color-brand)]'
-                  : 'opacity-30 hover:opacity-100 hover:bg-[var(--color-bg-elevated)]'
-                }`}
+              onClick={() => setShowCreateInstance(true)}
+              title="Создать инстанс"
+              className="sidebar-btn group w-full"
             >
-              {/* Бейдж непрочитанных */}
-              {tab.id === 'chat' && (tab.unread ?? 0) > 0 && activeTab !== 'chat' && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[8px] font-black flex items-center justify-center leading-none"
-                  style={{ backgroundColor: 'var(--color-brand)', color: '#000' }}
-                >
-                  {(tab.unread ?? 0) > 99 ? '99+' : tab.unread}
-                </span>
-              )}
-
-              {/* Точка упоминания (если нет числового бейджа) */}
-              {tab.showDot && (tab.unread ?? 0) === 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 flex">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                </span>
-              )}
-
-              {tab.icon}
-
-              <span className="absolute left-14 border text-[10px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[999] shadow-xl"
-                    style={{ backgroundColor: 'var(--color-bg-elevated)', borderColor: 'var(--color-border)', color: 'var(--color-text)' }}>
-                {tab.label}
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              {/* Тултип */}
+              <span className="absolute left-full ml-2 border text-[9px] px-2 py-1 rounded-none whitespace-nowrap
+                               opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[999]
+                               shadow-xl font-mc"
+                    style={{
+                      backgroundColor: 'var(--color-bg-elevated)',
+                      borderColor: 'var(--color-border-accent)',
+                      color: 'var(--color-brand)',
+                      letterSpacing: '0.1em',
+                    }}>
+                Новый инстанс
               </span>
             </button>
+          </div>
+
+
+          {/* Навигационные кнопки */}
+          {navTabs.map((tab, i) => (
+            <div key={tab.id} className="relative flex flex-col items-center w-full px-2.5">
+              {/* Разделитель перед некоторыми группами */}
+              {i === 3 && <div className="sidebar-divider mb-1 mx-auto" />}
+
+              <button
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === 'chat') {
+                    setHasMention(false);
+                    setChatUnread(0);
+                  }
+                }}
+                title={tab.label}
+                className={`sidebar-btn group w-full ${activeTab === tab.id ? 'active' : ''}`}
+              >
+                
+                {/* Бейдж непрочитанных */}
+                {tab.id === 'chat' && (tab.unread ?? 0) > 0 && activeTab !== 'chat' && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-[14px] h-3.5 px-1 rounded-none text-[7px] font-black flex items-center justify-center leading-none label-chip"
+                    style={{ padding: '1px 4px', fontSize: '7px' }}
+                  >
+                    {(tab.unread ?? 0) > 99 ? '99+' : tab.unread}
+                  </span>
+                )}
+
+                {/* Точка упоминания */}
+                {tab.showDot && (tab.unread ?? 0) === 0 && (
+                  <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full flex"
+                        style={{ background: 'var(--color-danger)', boxShadow: '0 0 4px var(--color-danger)' }}>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                          style={{ background: 'var(--color-danger)' }} />
+                  </span>
+                )}
+
+                {tab.icon}
+                
+                {/* Тултип */}
+                <span className="absolute left-full ml-2 border text-[9px] px-2 py-1 rounded-none whitespace-nowrap
+                                 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-[999]
+                                 shadow-xl font-mc"
+                      style={{
+                        backgroundColor: 'var(--color-bg-elevated)',
+                        borderColor: 'var(--color-border-accent)',
+                        color: 'var(--color-brand)',
+                        letterSpacing: '0.1em',
+                      }}>
+                  {tab.label}
+                </span>
+              </button>
+            </div>
           ))}
 
           <div className="flex-1" />
 
-          <button
-            onClick={() => setActiveTab('profile')}
-            className="w-8 h-8 rounded-lg overflow-hidden border transition-all mb-1 active:scale-90"
-            style={{ borderColor: activeTab === 'profile' ? 'var(--color-brand)' : 'var(--color-border)' }}
-            title={nickname || 'Профиль'}
-          >
-            {nickname && nickname.trim() !== '' ? (
-              <SkinHead
-                nickname={nickname}
-                provider={activeAccount.provider !== 'offline' ? activeAccount.provider : undefined}
-                size={32}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center opacity-20"
-                   style={{ backgroundColor: 'var(--color-text)' }}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          {/* Разделитель перед профилем */}
+          <div className="sidebar-divider mb-1 mx-auto" />
+
+          {/* Профиль */}
+          <div className="px-2.5 w-full">
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`sidebar-btn w-full overflow-hidden ${activeTab === 'profile' ? 'active' : ''}`}
+              title={nickname || 'Профиль'}
+            >
+              {nickname && nickname.trim() !== '' ? (
+                <SkinHead
+                  nickname={nickname}
+                  provider={activeAccount.provider !== 'offline' ? activeAccount.provider : undefined}
+                  size={28}
+                  className="w-full h-full object-cover pixelated"
+                />
+              ) : (
+                <svg className="w-4 h-4 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-              </div>
-            )}
-          </button>
+              )}
+            </button>
+          </div>
         </aside>
 
         {/* КОНТЕНТ */}
@@ -450,9 +498,20 @@ function App() {
             handleLaunch={handleLaunch}
             handleResetVersion={handleResetVersion}
             openFolder={openFolder}
+            onCreateInstance={() => setShowCreateInstance(true)}  // ← добавь
           />
         </div>
       </div>
+       {showCreateInstance && (
+        <CreateInstanceModal
+          onClose={() => setShowCreateInstance(false)}
+          onCreated={(instanceId) => {
+            setShowCreateInstance(false);
+            fetchVersions(); // обновляем список версий
+            setSelectedVersion(instanceId); // сразу выбираем новый инстанс
+          }}
+        />
+      )}
     </div>
   );
 }

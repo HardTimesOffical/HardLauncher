@@ -55,48 +55,20 @@ export const syncServers = async (gamePath: string) => {
   const REMOTE_SERVERS_URL = "https://s3.twcstorage.ru/25f7f6a6-e7bd-4e1a-b0ff-5abadb3c2fcc/hardlauncher/servers.json";
 
   try {
+    // Получаем свежий список с сервера
     const response = await fetch(REMOTE_SERVERS_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    
     const remoteServers: MinecraftServer[] = await response.json();
 
-    // Читаем существующие IP из servers.dat если он есть
-    const existingIps = new Set<string>();
-    if (fs.existsSync(serversPath)) {
-      try {
-        const buf = fs.readFileSync(serversPath);
-        // Ищем все строки IP в бинарнике — просто парсим текст
-        const text = buf.toString('latin1');
-        remoteServers.forEach(s => {
-          if (text.includes(s.ip)) existingIps.add(s.ip);
-        });
-      } catch {}
-    }
-
-    const toAdd = remoteServers.filter(s => !existingIps.has(s.ip));
-    if (toAdd.length === 0) {
-      console.log('[ServerManager] Все серверы уже добавлены');
+    if (!remoteServers || !Array.isArray(remoteServers)) {
+      console.log('[ServerManager] Некорректный формат данных из облака');
       return;
     }
-
-    // Читаем существующие серверы из файла или начинаем с пустого
-    let existingServers: Array<{name: string, ip: string}> = [];
-    if (fs.existsSync(serversPath)) {
-      try {
-        const buf = fs.readFileSync(serversPath);
-        const decoded = nbt.decode(buf);
-        const servers = (decoded.value as any).servers || [];
-        existingServers = servers.map((s: any) => ({
-          name: typeof s.name === 'object' ? s.name.value : (s.name || ''),
-          ip: typeof s.ip === 'object' ? s.ip.value : (s.ip || ''),
-        })).filter((s: any) => s.ip);
-      } catch {}
-    }
-
-    const allServers = [...existingServers, ...toAdd];
-    
-    // Записываем servers.dat вручную в правильном NBT формате
-    const buf = writeServersDat(allServers);
+    const buf = writeServersDat(remoteServers);
     fs.writeFileSync(serversPath, buf);
-    console.log('[ServerManager] Добавлены серверы:', toAdd.map(s => s.name).join(', '));
+    
+    console.log('[ServerManager] Список серверов полностью синхронизирован (перезаписан)');
 
   } catch (err) {
     console.error('[ServerManager] Ошибка синхронизации серверов:', err);

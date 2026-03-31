@@ -13,7 +13,8 @@
       "name": "Forge 1.21.11",
       "type": "forge",
       "gameVersion": "1.21.11",
-      "loaderVersion": "61.1.0"
+      "loaderVersion": "61.1.0",
+      "source": "mojang"
     },
 
     { "id": "1.21.10", "type": "release" },
@@ -135,7 +136,8 @@
       "name": "Forge 1.20.1",
       "type": "forge",
       "gameVersion": "1.20.1",
-      "loaderVersion": "47.4.10"
+      "loaderVersion": "47.4.10",
+      "source": "custom"
     },
 
     { "id": "1.20", "type": "release" },

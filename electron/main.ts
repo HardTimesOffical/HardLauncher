@@ -17,9 +17,10 @@ import { syncServers } from './modules/server.manager';
 import { ensureInjector } from './modules/server.manager'
 import { AccountManager } from './modules/account.manager';
 import { installForge } from './modules/installers/forge.installer'
-import { InstanceManager } from './modules/instance.manager';
+import { InstanceManager,  GameInstance } from './modules/instance.manager';
 import { installModpack } from './modules/modpack.installer';
 import { installMod, removeMod, getInstalledMods } from './modules/mod.installer';
+import { installFromS3 } from './modules/installers/s3.installer'
 
 gracefulFs.gracefulify(fs)
 let runningGameProcess: any = null;
@@ -168,25 +169,26 @@ async function launchVanilla(
   webContents: Electron.WebContents,
   authServerUrl: string,
   serverIp?: string,
-  auth?: IUser
+  auth?: IUser,
+  instanceDir?: string // Параметр уже есть в заголовке, теперь используем его
 ) {
   try {
     const config = ConfigManager.load();
     const mcVersion = extractMinecraftVersion(versionId);
 
+    // Определяем рабочий путь: если есть instanceDir, используем его, иначе общий gamePath
+    const gameRoot = instanceDir || config.gamePath;
+
     const javaPath = await ensureJava(
       getJavaVersionNeeded(mcVersion).toString(),
       webContents,
-      config.gamePath
+      config.gamePath // Java всегда качаем в общий корень
     );
 
     const jvmArgs: string[] = [];
-
     const injectorPath = await ensureInjector(config.gamePath, webContents);
     const effectiveAuthUrl = authServerUrl || 'https://authserver.ely.by';
     jvmArgs.push(`-javaagent:${injectorPath}=${effectiveAuthUrl}`);
-    console.log(`[Inject] Инжектор: ${effectiveAuthUrl} (${authServerUrl ? 'авторизован' : 'офлайн bypass'})`);
-
 
     jvmArgs.push(
       `-Dauthlibinjector.side=client`,
@@ -195,13 +197,8 @@ async function launchVanilla(
     );
 
     const minorVer = parseInt(mcVersion.split('.')[1]);
-
-    // Для 1.17 нужны дополнительные JVM аргументы
     if (minorVer === 17) {
-      jvmArgs.push(
-        '-Dorg.lwjgl.util.Debug=true',           // покажет ошибки LWJGL в логах
-        '-Dorg.lwjgl.util.DebugLoader=true',
-      );
+      jvmArgs.push('-Dorg.lwjgl.util.Debug=true', '-Dorg.lwjgl.util.DebugLoader=true');
     }
     
     let cleanIp = serverIp;
@@ -214,13 +211,12 @@ async function launchVanilla(
     const versionParts = mcVersion.split('.').map(Number);
     const majorMinor = versionParts[0] * 100 + (versionParts[1] || 0);
 
-    // Game args — подключение к серверу
     const gameArgs: string[] = [];
     if (cleanIp) gameArgs.push('--server', host, '--port', port);
 
     const opts: any = {
       authorization: auth || authMethod(nickname),
-      root: config.gamePath,
+      root: gameRoot, // ИСПОЛЬЗУЕМ gameRoot (папка инстанса или .minecraft)
       javaPath,
       version: {
         number: mcVersion,
@@ -233,12 +229,12 @@ async function launchVanilla(
       customArgs: jvmArgs,
       overrides: {
         assetIndex: mcVersion,
+        // Нативы всегда ищем в общем корне, чтобы не перекачивать для каждого инстанса
         natives: path.join(config.gamePath, 'natives', mcVersion),
         ...(gameArgs.length > 0 ? { gameArgs } : {})
       }
     };
 
-    // QuickPlay только для 1.20+
     if (cleanIp && majorMinor >= 120) {
       opts.quickPlay = {
         type: "multiplayer",
@@ -246,19 +242,18 @@ async function launchVanilla(
       };
     }
 
-    console.log(`[Launch] Запуск ${mcVersion}. Auth: ${authServerUrl || 'Offline'}. Сервер: ${cleanIp || 'нет'}`);
-    console.log(`[Launch] customArgs: ${opts.customArgs.join(' ')}`);
+    console.log(`[Launch] Запуск ${mcVersion}. Root: ${gameRoot}`);
 
     const launcher = createGameLauncher(
       webContents,
       !fs.existsSync(path.join(config.gamePath, 'versions', mcVersion))
     );
     
-    await syncServers(config.gamePath);
+    await syncServers(gameRoot);
 
     const jarPath = path.join(config.gamePath, 'versions', mcVersion, `${mcVersion}.jar`);
     if (fs.existsSync(jarPath) && fs.statSync(jarPath).size > 1000) {
-      console.log(`[Launch] jar уже есть (${Math.round(fs.statSync(jarPath).size / 1024)}KB)`);
+      console.log(`[Launch] jar найден`);
     }
     
     await launcher.launch(opts);
@@ -332,7 +327,7 @@ async function launchCustom(
     skipAsync: true
   };
 
-  await syncServers(config.gamePath);
+  await syncServers(instanceDir || config.gamePath);
 
   const jarPath = path.join(versionDir, `${id}.jar`);
   const isReady = fs.existsSync(jarPath);
@@ -366,13 +361,12 @@ async function launchForge(
   );
 
   const forgeVersionId = await installForge(
-      gameVersion, loaderVersion, config.gamePath, javaPath, webContents,
-      isNeoForge  // ← передаём
- );
+    gameVersion, loaderVersion, config.gamePath, javaPath, webContents,
+    isNeoForge
+  );
 
   const lib = path.join(config.gamePath, 'libraries');
   const sep = path.delimiter;
-
   const minorVersion = parseInt(gameVersion.split('.')[1]);
   const needsModulePath = minorVersion >= 17;
 
@@ -383,22 +377,22 @@ async function launchForge(
   ];
 
   if (needsModulePath) {
-      if (isNeoForge) {
-        const modulePaths = [
-          findLibJar(lib, 'cpw/mods/bootstraplauncher'),
-          findLibJar(lib, 'cpw/mods/securejarhandler'),
-          findLibJar(lib, 'org/ow2/asm/asm-commons'),
-          findLibJar(lib, 'org/ow2/asm/asm-util'),
-          findLibJar(lib, 'org/ow2/asm/asm-analysis'),
-          findLibJar(lib, 'org/ow2/asm/asm-tree'),
-          findLibJar(lib, 'org/ow2/asm/asm'),
-          findLibJar(lib, 'net/neoforged/JarJarFileSystems'),
-        ];
-        
-        console.log('[NeoForge] Module paths:');
-        modulePaths.forEach(p => console.log('  -', p, fs.existsSync(p) ? 'OK' : 'MISSING!'));
-        
-        customArgs.push(
+    if (isNeoForge) {
+      const modulePaths = [
+        findLibJar(lib, 'cpw/mods/bootstraplauncher'),
+        findLibJar(lib, 'cpw/mods/securejarhandler'),
+        findLibJar(lib, 'org/ow2/asm/asm-commons'),
+        findLibJar(lib, 'org/ow2/asm/asm-util'),
+        findLibJar(lib, 'org/ow2/asm/asm-analysis'),
+        findLibJar(lib, 'org/ow2/asm/asm-tree'),
+        findLibJar(lib, 'org/ow2/asm/asm'),
+        findLibJar(lib, 'net/neoforged/JarJarFileSystems'),
+      ];
+
+      console.log('[NeoForge] Module paths:');
+      modulePaths.forEach(p => console.log('  -', p, fs.existsSync(p) ? 'OK' : 'MISSING!'));
+
+      customArgs.push(
         `-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,neoforge-,${forgeVersionId}.jar`,
         `-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar`,
         `-DlibraryDirectory=${lib}`,
@@ -409,8 +403,8 @@ async function launchForge(
         `--add-exports`, `java.base/sun.security.util=cpw.mods.securejarhandler`,
         `--add-exports`, `jdk.naming.dns/com.sun.jndi.dns=java.naming`,
       );
-      } else {
-      // Обычный Forge
+    } else {
+      // Обычный Forge 1.17+
       customArgs.push(
         `-DignoreList=bootstraplauncher,securejarhandler,asm-commons,asm-util,asm-analysis,asm-tree,asm,JarJarFileSystems,client-extra,fmlcore,javafmllanguage,lowcodelanguage,mclanguage,forge-,${forgeVersionId}.jar`,
         `-DmergeModules=jna-5.10.0.jar,jna-platform-5.10.0.jar`,
@@ -435,9 +429,19 @@ async function launchForge(
     }
   }
 
+  // Injector ПОСЛЕ модульных аргументов — критично для Forge 1.17+
   const injectorPath = await ensureInjector(config.gamePath, webContents);
   const effectiveAuthUrl = authServerUrl || 'https://authserver.ely.by';
-  customArgs.unshift(`-javaagent:${injectorPath}=${effectiveAuthUrl}`)
+
+  customArgs.push(
+    `--add-opens=java.base/java.net=ALL-UNNAMED`,
+    `--add-opens=java.base/sun.net=ALL-UNNAMED`,
+    `-Dauthlibinjector.side=client`,
+    `-Dauthlibinjector.noLogFile=true`,
+    `-javaagent:${injectorPath}=${effectiveAuthUrl}`,
+  );
+
+  console.log(`[Forge] Auth: ${effectiveAuthUrl}`);
 
   const opts: any = {
     authorization: auth || authMethod(nickname),
@@ -456,7 +460,7 @@ async function launchForge(
     },
   };
 
-  await syncServers(config.gamePath);
+  await syncServers(instanceDir || config.gamePath);
 
   const launcher = createGameLauncher(webContents, false);
   await launcher.launch(opts);
@@ -478,45 +482,44 @@ ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
   let authServerUrl = '';
   let userAuth: IUser;
 
-      if (runningGameProcess) {
-          try {
-            runningGameProcess.kill('SIGKILL');
-            console.log('[Launch] Предыдущий процесс завершён');
-          } catch (e) {
-            console.error('[Launch] Не удалось завершить процесс:', e);
-          }
-          runningGameProcess = null;
-      }
-
-    if (account && account.provider === 'microsoft' && account.mclcToken) {
-      try {
-        const mclcToken = JSON.parse(account.mclcToken);
-        userAuth = mclcToken;
-        authServerUrl = ''; // Microsoft — без инжектора
-      } catch {
-        userAuth = authMethod(nickname);
-        authServerUrl = 'https://authserver.ely.by';
-      }
-    } else if (account && account.uuid && account.token && account.token !== "0") {
-      // Ely.by и Internal — оба через ely.by инжектор
-      authServerUrl = 'https://authserver.ely.by';
-      const formattedUUID = formatUUID(account.uuid);
-      userAuth = {
-        access_token: account.token,
-        client_token: formattedUUID,
-        uuid: formattedUUID,
-        name: nickname,
-        user_properties: {},
-        meta: { type: "mojang" as any, demo: false }
-      };
-    } else {
-      // Офлайн — тоже через ely.by для разблокировки мультиплеера
-      authServerUrl = 'https://authserver.ely.by';
-      userAuth = authMethod(nickname);
+  if (runningGameProcess) {
+    try {
+      runningGameProcess.kill('SIGKILL');
+      console.log('[Launch] Предыдущий процесс завершён');
+    } catch (e) {
+      console.error('[Launch] Не удалось завершить процесс:', e);
     }
+    runningGameProcess = null;
+  }
+
+  // Настройка авторизации
+  if (account && account.provider === 'microsoft' && account.mclcToken) {
+    try {
+      const mclcToken = JSON.parse(account.mclcToken);
+      userAuth = mclcToken;
+      authServerUrl = ''; 
+    } catch {
+      userAuth = authMethod(nickname);
+      authServerUrl = 'https://authserver.ely.by';
+    }
+  } else if (account && account.uuid && account.token && account.token !== "0") {
+    authServerUrl = 'https://authserver.ely.by';
+    const formattedUUID = formatUUID(account.uuid);
+    userAuth = {
+      access_token: account.token,
+      client_token: formattedUUID,
+      uuid: formattedUUID,
+      name: nickname,
+      user_properties: {},
+      meta: { type: "mojang" as any, demo: false }
+    };
+  } else {
+    authServerUrl = 'https://authserver.ely.by';
+    userAuth = authMethod(nickname);
+  }
 
   try {
-    // Если передан instanceId — запускаем инстанс модпака
+    // === ИСПРАВЛЕННЫЙ БЛОК ДЛЯ ИНСТАНСОВ ===
     if (instanceId) {
       const instanceManager = new InstanceManager(config.gamePath);
       const instance = instanceManager.get(instanceId);
@@ -524,47 +527,65 @@ ipcMain.on('launch-game', async (event, { version, nickname, instanceId }) => {
 
       const instanceDir = instanceManager.getInstanceDir(instanceId);
       instanceManager.updateLastPlayed(instanceId);
-      let loaderVersion = instance.loaderVersion
-      ;
+      
+      let loaderVersion = instance.loaderVersion;
       if (loaderVersion && (instance.type === 'forge' || instance.type === 'neoforge') 
           && !loaderVersion.includes(instance.gameVersion)) {
         loaderVersion = `${instance.gameVersion}-${loaderVersion}`;
       }
 
-
-      // Формируем фейковый versionObj из данных инстанса
-      const versionObj = {
-        id: `fabric-latest-${instance.gameVersion}`,
-        type: (() => {
-          if (instance.type === 'neoforge') return 'neoforge';
-          if (instance.type === 'forge') return 'forge';
-          if (instance.type === 'fabric') return 'fabric';
-          if (instance.type === 'modpack') {
-            // Определяем по loaderVersion если тип modpack
-            if (instance.loaderVersion?.includes('neoforge')) return 'neoforge';
-            return 'fabric';
-          }
+      // Определяем тип инстанса (Фикс от Клода)
+      const instanceType = (() => {
+        if (instance.type === 'neoforge') return 'neoforge';
+        if (instance.type === 'forge') return 'forge';
+        if (instance.type === 'fabric') return 'fabric';
+        if (instance.type === 'vanilla') return 'vanilla';
+        if (instance.type === 'modpack') {
+          if (instance.loaderVersion?.includes('neoforge')) return 'neoforge';
           return 'fabric';
-        })(),
+        }
+        return 'vanilla';
+      })();
+
+      // Формируем versionObj
+      const versionObj = {
+        id: instanceType === 'fabric'
+          ? `fabric-latest-${instance.gameVersion}`
+          : instance.gameVersion,
+        type: instanceType,
         gameVersion: instance.gameVersion,
         loaderVersion,
+        source: instance.source || 'mojang',
       };
 
+      // Работа с S3 для кастомных сборок
+      if (versionObj.source === 'custom') {
+        try {
+          await installFromS3(versionObj, config.gamePath, webContents);
+        } catch (err) {
+          console.warn('[S3] fallback:', err);
+        }
+      }
+
+      // Выбор метода запуска
       if (versionObj.type === 'forge' || versionObj.type === 'neoforge') {
         await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth, instanceDir);
-      } else {
+      } else if (versionObj.type === 'fabric') {
         await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth, instanceDir);
+      } else {
+        // Запуск чистой ваниллы через инстанс
+        await launchVanilla(instance.gameVersion, nickname, webContents, authServerUrl, undefined, userAuth, instanceDir);
       }
       return;
     }
 
-    // Обычный запуск из манифеста
+    // Обычный запуск из манифеста (версии в списке)
     const versionObj = (versionsData.versions as any[]).find(v => v.id === version);
     if (!versionObj) throw new Error(`Версия ${version} не найдена!`);
     const mcVersion = versionObj.gameVersion || versionObj.id;
 
     if (versionObj.type === 'forge' || versionObj.type === 'neoforge') {
-      await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth); // убрал instanceDir
+      await launchForge(versionObj, nickname, webContents, authServerUrl, userAuth);
     } else if (versionObj.type === 'fabric' || versionObj.type === 'custom') {
       await launchCustom(versionObj, nickname, webContents, authServerUrl, userAuth);
     } else {
@@ -733,6 +754,159 @@ ipcMain.handle('remove-instance', async (_, instanceId: string) => {
   const manager = new InstanceManager(config.gamePath);
   manager.remove(instanceId);
   return { success: true };
+});
+
+ipcMain.handle('create-instance', async (_, {
+  name,
+  gameVersion,
+  type,
+  loaderVersion: providedLoaderVersion,
+  iconUrl,
+  description,
+}: {
+  name: string;
+  gameVersion: string;
+  type: 'vanilla' | 'fabric' | 'forge' | 'neoforge';
+  loaderVersion?: string;
+  iconUrl?: string;
+  description?: string;
+}) => {
+  const config = ConfigManager.load();
+  const manager = new InstanceManager(config.gamePath);
+ 
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/gi, '-')   // ← убрали кириллицу из slug чтобы не было кривых ID
+    .replace(/-+/g, '-')
+    .slice(0, 20);
+  const id = `custom-${slug}-${Date.now().toString(36)}`;
+ 
+  // Автоматически находим версию лоадера если не передана
+  let loaderVersion = providedLoaderVersion;
+  if (!loaderVersion && type !== 'vanilla') {
+    try {
+      if (type === 'fabric') {
+        const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}`);
+        if (res.ok) {
+          const data = await res.json();
+          loaderVersion = data[0]?.loader?.version;
+        }
+      } else if (type === 'forge') {
+        const promoRes = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
+        if (promoRes.ok) {
+          const promos = await promoRes.json();
+          loaderVersion = promos.promos[`${gameVersion}-recommended`]
+            || promos.promos[`${gameVersion}-latest`];
+        }
+      }
+    } catch (err) {
+      console.warn('[create-instance] Не удалось получить версию лоадера:', err);
+    }
+  }
+ 
+  const instance: GameInstance = {
+    id,
+    name,
+    type,
+    gameVersion,
+    loaderVersion: loaderVersion || undefined,
+    iconUrl: iconUrl || undefined,
+    description: description || undefined,
+    createdAt: new Date().toISOString(),
+    source: 'mojang',
+  };
+ 
+  manager.save(instance);
+  manager.ensureInstanceDir(id);
+ 
+  console.log(`[create-instance] Создан: ${id} | ${type} ${gameVersion} | loader: ${loaderVersion || 'none'}`);
+  return { success: true, instanceId: id, instance };
+});
+ 
+// ======================================================
+// ПОЛУЧЕНИЕ ДОСТУПНЫХ ВЕРСИЙ MINECRAFT ДЛЯ СОЗДАНИЯ
+// ======================================================
+ 
+ipcMain.handle('get-mc-versions-for-instance', async () => {
+  try {
+    const res = await fetch('https://launchermeta.mojang.com/mc/game/version_manifest_v2.json');
+    const data = await res.json();
+    
+    // Возвращаем только release версии начиная с 1.12
+    const releases = data.versions
+      .filter((v: any) => v.type === 'release')
+      .filter((v: any) => {
+        const parts = v.id.split('.');
+        const minor = parseInt(parts[1]);
+        return minor >= 12;
+      })
+      .map((v: any) => v.id)
+      .slice(0, 40); // последние 40 релизов
+ 
+    return releases;
+  } catch {
+    // Fallback — популярные версии
+    return [
+      '1.21.4', '1.21.3', '1.21.1', '1.21',
+      '1.20.6', '1.20.4', '1.20.2', '1.20.1',
+      '1.19.4', '1.19.2',
+      '1.18.2', '1.17.1', '1.16.5', '1.12.2',
+    ];
+  }
+});
+ 
+// ======================================================
+// ПОЛУЧЕНИЕ ВЕРСИЙ ЛОАДЕРА
+// ======================================================
+ 
+ipcMain.handle('get-loader-versions', async (_, { type, gameVersion }: {
+  type: 'fabric' | 'forge' | 'neoforge';
+  gameVersion: string;
+}) => {
+  try {
+    if (type === 'fabric') {
+      const res = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${gameVersion}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.slice(0, 15).map((v: any) => v.loader.version);
+    }
+ 
+    if (type === 'forge') {
+      const res = await fetch(`https://files.minecraftforge.net/net/minecraftforge/forge/index_${gameVersion}.html`);
+      // Forge не имеет простого JSON API — возвращаем известные версии
+      // Лучше использовать promotions endpoint
+      const promoRes = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
+      if (!promoRes.ok) return [];
+      const promos = await promoRes.json();
+      const recommended = promos.promos[`${gameVersion}-recommended`];
+      const latest = promos.promos[`${gameVersion}-latest`];
+      const versions = [];
+      if (latest) versions.push(latest);
+      if (recommended && recommended !== latest) versions.push(recommended);
+      return versions;
+    }
+ 
+    if (type === 'neoforge') {
+      const minor = parseInt(gameVersion.split('.')[1]);
+      const patch = parseInt(gameVersion.split('.')[2] || '0');
+      // NeoForge версии для 1.20.2+
+      if (minor < 20 || (minor === 20 && patch < 2)) return [];
+      const res = await fetch(`https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml`);
+      if (!res.ok) return [];
+      const text = await res.text();
+      // Парсим XML вручную — ищем версии для нужного MC
+      const mcShort = `${gameVersion.split('.')[1]}.${patch}`;
+      const matches = [...text.matchAll(/<version>(\d+\.\d+\.\d+)<\/version>/g)]
+        .map(m => m[1])
+        .filter(v => v.startsWith(mcShort))
+        .reverse()
+        .slice(0, 10);
+      return matches;
+    }
+  } catch (err) {
+    console.error('[get-loader-versions]', err);
+  }
+  return [];
 });
 
 

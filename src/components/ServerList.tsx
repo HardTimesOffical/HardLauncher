@@ -33,116 +33,105 @@ const ServerList = () => {
   };
 
   return (
-    <div className="flex flex-col w-[380px] select-none animate-in fade-in duration-500">
-      
-      {/* ШАПКА */}
-      <div className="px-3 py-1 bg-black/50 backdrop-blur-md rounded-t-lg border-t border-x border-white/10 flex justify-between items-center">
-        <span className="text-[7px] font-black uppercase tracking-[0.3em] text-white/20">Мониторинг</span>
-        <div className="w-1 h-1 rounded-full bg-[var(--color-brand)] opacity-40" />
-      </div>
+   <div className="flex flex-col w-[380px] select-none animate-in fade-in duration-500 font-sans">
+  
+  {/* ШАПКА: Минималистичная, чтобы не съедать место */}
+  <div className="px-3 py-1 bg-black/60 backdrop-blur-md border border-[var(--color-border-accent)] flex justify-between items-center shadow-lg">
+    <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
+      Мониторинг
+    </span>
+    <div className="w-1.5 h-1.5 bg-[var(--color-brand)] shadow-[0_0_5px_var(--color-brand)]" />
+  </div>
 
-      {/* СПИСОК */}
-      <div className="flex flex-col gap-1 mt-1">
-        {loading ? (
-          Array.from({ length: 10 }).map((_, i) => (
-            <div
-              key={i}
-              className="rounded border border-white/[0.03] overflow-hidden"
-              style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-            >
-              <div className="flex items-center gap-2 px-2 py-1">
-                {/* номер */}
-                <div className="w-3 h-2 rounded-sm bg-white/[0.04] animate-pulse" />
-                {/* название — разная ширина для реализма */}
-                <div
-                  className="h-2 rounded-sm bg-white/[0.06] animate-pulse"
-                  style={{ width: `${55 + (i * 13) % 35}%`, animationDelay: `${i * 60}ms` }}
-                />
-                {/* версия */}
-                <div
-                  className="ml-auto w-7 h-3.5 rounded bg-white/[0.04] animate-pulse"
-                  style={{ animationDelay: `${i * 60}ms` }}
-                />
-              </div>
-            </div>
-          ))
-        ) : (
-          servers.map((server, index) => (
-            <div
-              key={server._id}
-              onMouseEnter={() => setHoveredId(server._id)}
-              onMouseLeave={() => setHoveredId(null)}
-              className="relative overflow-hidden rounded border transition-all duration-200"
-              style={{ 
-                backgroundColor: hoveredId === server._id ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.4)',
-                borderColor: hoveredId === server._id ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.03)'
-              }}
-            >
-              <div className="flex items-center gap-2 px-2 py-1">
-                <span className="text-[7px] font-mono text-white/10 w-3">{String(index + 1).padStart(2, '0')}</span>
-                
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <span className="text-[9px] font-bold text-white/70 truncate">
-                    {server.serverName}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-[7px] font-bold text-white/30 bg-white/5 px-1 rounded border border-white/5">
-                    {server.gameVersion}
-                  </span>
-                </div>
-              </div>
-
-              <div className={`flex border-t border-white/5 bg-black/60 transition-all duration-200 ease-out ${
-                hoveredId === server._id ? 'max-h-[28px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
+  {/* СПИСОК: gap-[1px] и уменьшенные отступы для 10 серверов */}
+  <div className="flex flex-col gap-[1px] mt-1">
+    {loading ? (
+      Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} className="border border-white/[0.02] bg-black/30 h-[30px] animate-pulse" />
+      ))
+    ) : (
+      servers.slice(0, 10).map((server, index) => (
+        <div
+          key={server._id}
+          onMouseEnter={() => setHoveredId(server._id)}
+          onMouseLeave={() => setHoveredId(null)}
+          className="relative transition-all duration-150 border-x border-transparent"
+          style={{ 
+            backgroundColor: hoveredId === server._id ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.45)',
+            borderColor: hoveredId === server._id ? 'var(--color-border-accent)' : 'transparent'
+          }}
+        >
+          {/* Основная строка сервера (высота ~30px) */}
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <span className="text-[8px] font-mono text-[var(--color-text-dim)] opacity-40 w-4">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            
+            <div className="flex-1 min-w-0">
+              <span className={`text-[10px] font-bold truncate block transition-colors ${
+                hoveredId === server._id ? 'text-[var(--color-brand)]' : 'text-[#ffffff]' 
               }`}>
-                <button
-                  onClick={() => (window as any).ipcRenderer.send('launch-game', { serverIp: server.ipAddress })}
-                  className="flex-1 py-1.5 text-[8px] font-black uppercase tracking-tighter text-[var(--color-brand)] hover:bg-[var(--color-brand)] hover:text-black transition-all"
-                >
-                  Играть
-                </button>
-                <button
-                  onClick={() => handleCopyIp(server.ipAddress, server._id)}
-                  className="px-3 py-1.5 text-[7px] font-bold border-l border-white/5 text-white/20 hover:text-white hover:bg-white/5 transition-all"
-                >
-                  {copiedId === server._id ? 'ОК' : 'IP'}
-                </button>
-                <button
-                  onClick={() => openLink(`https://hardmonitoring.ru/server/${server._id}`)}
-                  className="px-3 py-1.5 text-[7px] font-bold border-l border-white/5 text-white/20 hover:text-white hover:bg-white/5 transition-all"
-                >
-                  Инфо
-                </button>
-              </div>
+                {server.serverName}
+              </span>
             </div>
-          ))
-        )}
-      </div>
 
-      {/* ФУТЕР */}
-      <div className="grid grid-cols-3 gap-1 mt-2">
-        <button 
-          className="py-2 rounded-l-lg bg-[#222] border border-white/10 text-[8px] font-black uppercase tracking-wider text-white/70 hover:bg-[#333] transition-all active:scale-95"
-          onClick={() => openLink('https://hardmonitoring.ru/add')}
-        >
-          Добавить
-        </button>
-        <button 
-          className="py-2 bg-[#1a1a1a] border border-white/10 text-[8px] font-black uppercase tracking-wider text-white/50 hover:text-white transition-all active:scale-95"
-          onClick={() => openLink('https://hardmonitoring.ru')}
-        >
-          Мониторинг
-        </button>
-        <button 
-          className="py-2 rounded-r-lg bg-[var(--color-brand)] border border-white/20 text-[8px] font-black uppercase tracking-wider text-black hover:brightness-110 transition-all shadow-[0_0_15px_rgba(var(--color-brand-rgb),0.2)] active:scale-95"
-          onClick={() => {/* Автодобавление */}}
-        >
-          Автодобавление
-        </button>
-      </div>
-    </div>
+            <div className="flex items-center">
+              <span className="text-[7.5px] font-bold text-[var(--color-text-dim)] bg-white/5 px-1 py-0.5 border border-white/10 uppercase">
+                {server.gameVersion}
+              </span>
+            </div>
+          </div>
+
+          {/* ВЫПАДАЮЩИЕ КНОПКИ: Сделаны компактнее (py-1) */}
+          <div className={`flex border-t border-[var(--color-border-accent)] bg-black/80 backdrop-blur-md transition-all duration-150 overflow-hidden ${
+            hoveredId === server._id ? 'max-h-[26px] opacity-100' : 'max-h-0 opacity-0'
+          }`}>
+            <button
+              onClick={() => (window as any).ipcRenderer.send('launch-game', { serverIp: server.ipAddress })}
+              className="flex-1 py-1 text-[8px] font-black uppercase tracking-wider text-[var(--color-brand)] hover:bg-[var(--color-brand)] hover:text-black transition-all"
+            >
+              Играть
+            </button>
+            <button
+              onClick={() => handleCopyIp(server.ipAddress, server._id)}
+              className="px-3 py-1 text-[7px] font-bold border-l border-white/5 text-[var(--color-text-dim)] hover:text-white hover:bg-white/10 transition-all"
+            >
+              {copiedId === server._id ? 'OK' : 'IP'}
+            </button>
+            <button
+              onClick={() => openLink(`https://hardmonitoring.ru/monitoring/${server.slug}`)}
+              className="px-3 py-1 text-[7px] font-bold border-l border-white/5 text-[var(--color-text-dim)] hover:text-white hover:bg-white/10 transition-all"
+            >
+              ИНФО
+            </button>
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+
+  {/* ФУТЕР: Высота py-2 для компактности */}
+  <div className="grid grid-cols-3 gap-[2px] mt-1.5">
+    <button 
+      className="py-2 bg-[var(--color-bg-subtle)] border border-[var(--color-border-accent)] text-[8px] font-bold uppercase tracking-widest text-[var(--color-text-dim)] hover:text-white hover:bg-[#252826] transition-all active:scale-[0.98]"
+      onClick={() => openLink('https://monitoring.ru/add')}
+    >
+      Добавить
+    </button>
+    <button 
+      className="py-2 bg-[var(--color-bg-subtle)] border border-[var(--color-border-accent)] text-[8px] font-bold uppercase tracking-widest text-[var(--color-text-dim)] hover:text-white transition-all active:scale-[0.98]"
+      onClick={() => openLink('https://monitoring.ru')}
+    >
+      Список
+    </button>
+    <button 
+      className="py-2 bg-[var(--color-brand)] border border-[var(--color-brand)] text-[8px] font-black uppercase tracking-widest text-black hover:brightness-110 transition-all shadow-[0_2px_10px_rgba(132,169,140,0.15)] active:scale-[0.98]"
+      onClick={() => {/* Автодобавление */}}
+    >
+      Автодобавление
+    </button>
+  </div>
+</div>
   );
 };
 

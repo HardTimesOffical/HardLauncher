@@ -1,7 +1,7 @@
 {
   "name": "hardlauncher",
   "private": true,
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Minecraft Launcher for Hard Monitoring",
   "type": "module",
   "scripts": {
