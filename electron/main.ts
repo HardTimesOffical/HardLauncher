@@ -871,20 +871,22 @@ ipcMain.handle('get-loader-versions', async (_, { type, gameVersion }: {
       return data.slice(0, 15).map((v: any) => v.loader.version);
     }
  
-    if (type === 'forge') {
-      const res = await fetch(`https://files.minecraftforge.net/net/minecraftforge/forge/index_${gameVersion}.html`);
-      // Forge не имеет простого JSON API — возвращаем известные версии
-      // Лучше использовать promotions endpoint
-      const promoRes = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
-      if (!promoRes.ok) return [];
-      const promos = await promoRes.json();
-      const recommended = promos.promos[`${gameVersion}-recommended`];
-      const latest = promos.promos[`${gameVersion}-latest`];
-      const versions = [];
-      if (latest) versions.push(latest);
-      if (recommended && recommended !== latest) versions.push(recommended);
-      return versions;
-    }
+  if (type === 'forge') {
+    // Удалили лишний fetch, который не использовался
+    const promoRes = await fetch('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
+    
+    if (!promoRes.ok) return [];
+    
+    const promos = await promoRes.json();
+    const recommended = promos.promos[`${gameVersion}-recommended`];
+    const latest = promos.promos[`${gameVersion}-latest`];
+    
+    const versions = [];
+    if (latest) versions.push(latest);
+    if (recommended && recommended !== latest) versions.push(recommended);
+    
+    return versions;
+  }
  
     if (type === 'neoforge') {
       const minor = parseInt(gameVersion.split('.')[1]);

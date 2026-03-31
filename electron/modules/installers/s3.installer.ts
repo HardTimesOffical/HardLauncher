@@ -66,8 +66,23 @@ export async function installFromS3(
 
 async function downloadFile(url: string, dest: string, webContents: any): Promise<void> {
   const response = await axios({ method: 'GET', url, responseType: 'stream', maxRedirects: 5 });
+  
+  // Получаем общий размер файла из заголовков
+  const totalBytes = parseInt(response.headers['content-length'] || '0');
+  let downloadedBytes = 0;
+
   return new Promise((resolve, reject) => {
     const writer = fs.createWriteStream(dest);
+
+    response.data.on('data', (chunk: any) => {
+      downloadedBytes += chunk.length;
+      if (totalBytes > 0) {
+        const progress = (downloadedBytes / totalBytes) * 100;
+        // ТЕПЕРЬ webContents ИСПОЛЬЗУЕТСЯ, ОШИБКА ИСЧЕЗНЕТ
+        webContents.send('download-progress', { progress, url });
+      }
+    });
+
     response.data.pipe(writer);
     writer.on('finish', resolve);
     writer.on('error', reject);

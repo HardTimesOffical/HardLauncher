@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import * as nbt from 'nbt-ts';
 import axios from 'axios'; // Рекомендую использовать axios для скачивания файлов
 
 interface MinecraftServer {
